@@ -72,20 +72,25 @@ export default function DashboardPage() {
           {profile?.email}
         </p>
 
-        {/* Stats placeholder */}
+        {/* Stats */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '16px', marginBottom: '32px',
         }}>
           {[
-            { label: 'Documentos', value: '0', icon: '📄' },
-            { label: 'Clientes', value: '0', icon: '👥' },
-            { label: 'Este mes', value: '$0', icon: '💰' },
+            { label: 'Documentos', value: '0', icon: '📄', href: '/dashboard/documents' },
+            { label: 'Clientes', value: '0', icon: '👥', href: '/dashboard/clients' },
+            { label: 'Este mes', value: '$0', icon: '💰', href: '/dashboard/documents' },
           ].map(stat => (
-            <div key={stat.label} style={{
-              background: 'white', borderRadius: '14px',
-              padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)',
-            }}>
+            <div
+              key={stat.label}
+              onClick={() => router.push(stat.href)}
+              style={{
+                background: 'white', borderRadius: '14px',
+                padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)',
+                cursor: 'pointer',
+              }}
+            >
               <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>{stat.icon}</div>
               <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0e1b3d' }}>
                 {stat.value}
@@ -105,11 +110,11 @@ export default function DashboardPage() {
           </h2>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             {[
-              { label: '+ Nuevo presupuesto', bg: '#1a56e8' },
-              { label: '+ Nueva factura', bg: '#0a7c4b' },
-              { label: '+ Nuevo cliente', bg: '#0e7490' },
+              { label: '+ Nuevo presupuesto', bg: '#1a56e8', href: '/dashboard/documents/new' },
+              { label: '+ Nueva factura', bg: '#0a7c4b', href: '/dashboard/documents/new' },
+              { label: '+ Nuevo cliente', bg: '#0e7490', href: '/dashboard/clients' },
             ].map(action => (
-              <button key={action.label} style={{
+              <button key={action.label} onClick={() => router.push(action.href)} style={{
                 background: action.bg, color: 'white', border: 'none',
                 borderRadius: '10px', padding: '10px 18px',
                 fontSize: '.85rem', fontWeight: '600', cursor: 'pointer',
