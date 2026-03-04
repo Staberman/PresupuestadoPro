@@ -71,13 +71,20 @@ export default function DocumentsPage() {
     );
   }
 
-  const biz = {
-  name:    '',
-  address: '',
-  phone:   '',
-  email:   profile?.email || '',
-  cuit:    '',
-};
+  const [biz, setBiz] = useState({ name: '', address: '', phone: '', email: '', cuit: '' });
+
+useEffect(() => {
+  if (!user) return;
+  import('firebase/firestore').then(({ doc, getDoc }) => {
+    import('@/lib/firebase').then(({ db }) => {
+      getDoc(doc(db, 'users', user.uid)).then(snap => {
+        if (snap.exists() && snap.data().biz) {
+          setBiz(snap.data().biz);
+        }
+      });
+    });
+  });
+}, [user]);
   if (loading || docsLoading) {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f7fc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

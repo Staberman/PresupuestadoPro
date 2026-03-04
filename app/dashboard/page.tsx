@@ -82,6 +82,7 @@ export default function DashboardPage() {
             { label: 'Documentos', value: '0', icon: '📄', href: '/dashboard/documents' },
             { label: 'Clientes', value: '0', icon: '👥', href: '/dashboard/clients' },
             { label: 'Este mes', value: '$0', icon: '💰', href: '/dashboard/documents' },
+            { label: '⚙️ Configuración', bg: '#364061', href: '/dashboard/settings' },
           ].map(stat => (
             <div
               key={stat.label}
