@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getDocuments, deleteDocument, convertToInvoice, calcTotal, Document } from '@/lib/documents';
+import { generatePDF } from '@/lib/pdf';
 
 export default function DocumentsPage() {
   const { user, profile, loading, isPro } = useAuth();
@@ -70,6 +71,13 @@ export default function DocumentsPage() {
     );
   }
 
+  const biz = {
+  name:    '',
+  address: '',
+  phone:   '',
+  email:   profile?.email || '',
+  cuit:    '',
+};
   if (loading || docsLoading) {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f7fc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -159,7 +167,13 @@ export default function DocumentsPage() {
                           → Factura
                         </button>
                       )}
-                      <button onClick={() => router.push(`/dashboard/documents/${d.id}/edit`)} style={{ background: '#f0f4ff', color: '#1a56e8', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
+                      
+                      <button
+  onClick={() => generatePDF(d, biz, isPro)}
+  style={{ background: '#f0f4ff', color: '#0f2d6e', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}
+>
+  📄 PDF
+</button><button onClick={() => router.push(`/dashboard/documents/${d.id}/edit`)} style={{ background: '#f0f4ff', color: '#1a56e8', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
                         Editar
                       </button>
                       <button onClick={() => handleDelete(d.id!)} style={{ background: '#fee2e2', color: '#c41c1c', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
