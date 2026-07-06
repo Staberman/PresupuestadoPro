@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getDocument, calcTotal, Document } from '@/lib/documents';
+import { getDocument, updateDocument, calcTotal, Document } from '@/lib/documents';
 import { getPayments, addPayment, deletePayment, Payment, PAYMENT_METHODS, totalPaid } from '@/lib/payments';
 import { generatePDF, BizPdf } from '@/lib/pdf';
 import { statusMeta, normalizeStatus } from '@/lib/status';
@@ -27,6 +27,11 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const [publicUrl, setPublicUrl]   = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [copied, setCopied]         = useState(false);
+  const [sending, setSending]       = useState(false);
+  const [sent, setSent]             = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sendTo, setSendTo]         = useState('');
+  const [sendNote, setSendNote]     = useState('');
 
   useEffect(() => { params.then(p => setDocId(p.id)); }, [params]);
 
@@ -39,6 +44,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       getDocument(user.uid, docId).then(d => {
         if (!d) { setNotFound(true); return; }
         setDoc(d);
+        setSendTo(d.clientEmail ?? '');
         if (d.type === 'factura') {
           getPayments(user.uid, docId).then(setPayments);
         }
@@ -93,6 +99,46 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       alert('No se pudo generar el link. Intentá de nuevo.');
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleSendByEmail() {
+    if (!user || !docId || !doc) return;
+    if (!sendTo.trim()) { alert('Ingresá el email del cliente.'); return; }
+    setSending(true);
+    try {
+      // 1) Publicar el link público
+      const token = await publishQuoteIndexed(user.uid, { ...doc, id: docId }, biz);
+      const url = `${window.location.origin}/p/${token}`;
+      setPublicUrl(url);
+      // 2) Marcar como enviado
+      await updateDocument(user.uid, docId, { status: 'enviado' });
+      setDoc({ ...doc, status: 'enviado' });
+      // 3) Enviar email
+      const res = await fetch('/api/send-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: sendTo,
+          clientName: doc.clientName,
+          bizName: biz.name,
+          bizEmail: biz.email,
+          quoteNum: doc.num,
+          publicUrl: url,
+          note: sendNote,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Error al enviar');
+      }
+      setSent(true);
+      setShowSendModal(false);
+      setTimeout(() => setSent(false), 4000);
+    } catch (err) {
+      alert('No se pudo enviar el email. ' + ((err as Error).message || 'Verificá RESEND_API_KEY y que el email del cliente sea válido.'));
+    } finally {
+      setSending(false);
     }
   }
 
@@ -154,9 +200,14 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             📄 Descargar PDF
           </button>
           {doc.type === 'presupuesto' && (
-            <button onClick={handleShareLink} disabled={publishing} style={{ background: copied ? '#0a7c4b' : '#0e7490', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: publishing ? 'not-allowed' : 'pointer' }}>
-              {publishing ? 'Generando...' : copied ? '✓ Copiado' : '🔗 Copiar link público'}
-            </button>
+            <>
+              <button onClick={() => setShowSendModal(true)} disabled={sending} style={{ background: '#0e7490', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: sending ? 'not-allowed' : 'pointer' }}>
+                {sent ? '✓ Enviado' : '📧 Enviar al cliente'}
+              </button>
+              <button onClick={handleShareLink} disabled={publishing} style={{ background: copied ? '#0a7c4b' : '#364061', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: publishing ? 'not-allowed' : 'pointer' }}>
+                {publishing ? 'Generando...' : copied ? '✓ Copiado' : '🔗 Copiar link'}
+              </button>
+            </>
           )}
           <button onClick={() => router.push(`/dashboard/documents/${docId}/edit`)} style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', cursor: 'pointer' }}>
             ✏️ Editar
@@ -317,6 +368,36 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           </div>
         )}
       </div>
+
+      {/* Modal de envío por email */}
+      {showSendModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,30,80,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '24px' }}>
+          <div style={{ background: 'white', borderRadius: '18px', padding: '32px', width: '100%', maxWidth: '460px' }}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0e1b3d', marginBottom: '8px' }}>Enviar presupuesto por email</h2>
+            <p style={{ fontSize: '.82rem', color: '#7888a8', marginBottom: '20px' }}>
+              Se generará el link público y se enviará un email a tu cliente con un botón para ver, aceptar o rechazar el presupuesto. El estado pasará a «Enviado».
+            </p>
+            <div style={{ display: 'grid', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#364061', marginBottom: 5 }}>Email del cliente *</label>
+                <input type="email" value={sendTo} onChange={e => setSendTo(e.target.value)} placeholder="cliente@email.com" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #dde3f5', fontSize: '.85rem', outline: 'none', color: '#0e1b3d' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#364061', marginBottom: 5 }}>Mensaje (opcional)</label>
+                <textarea value={sendNote} onChange={e => setSendNote(e.target.value)} placeholder="Ej: Te paso el presupuesto que pediste. Cualquier duda avisame." rows={3} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #dde3f5', fontSize: '.85rem', outline: 'none', color: '#0e1b3d', resize: 'vertical' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+              <button onClick={() => setShowSendModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', background: '#f0f4ff', color: '#364061', border: 'none', fontWeight: '600', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={handleSendByEmail} disabled={sending || !sendTo.trim()} style={{ flex: 2, padding: '12px', borderRadius: '10px', background: sending ? '#93adf5' : '#0e7490', color: 'white', border: 'none', fontWeight: '700', cursor: sending ? 'not-allowed' : 'pointer' }}>
+                {sending ? 'Enviando...' : '📧 Enviar presupuesto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de pago */}
       {showPayModal && (
