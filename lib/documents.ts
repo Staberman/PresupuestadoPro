@@ -7,11 +7,30 @@ import { db } from '@/lib/firebase';
 export type DocStatus = 'draft' | 'pending' | 'accepted' | 'rejected' | 'expired' | 'paid';
 export type DocType   = 'presupuesto' | 'factura';
 
+export type UnitCode = 'hora' | 'dia' | 'semana' | 'proyecto' | 'unidad' | 'km' | 'mes';
+
+export const UNITS: { code: UnitCode; label: string; singular: string; plural: string }[] = [
+  { code: 'hora',     label: 'Horas',        singular: 'hora',     plural: 'horas' },
+  { code: 'dia',      label: 'Días',         singular: 'día',      plural: 'días' },
+  { code: 'semana',   label: 'Semanas',      singular: 'semana',   plural: 'semanas' },
+  { code: 'proyecto', label: 'Proyecto',     singular: 'proyecto', plural: 'proyectos' },
+  { code: 'unidad',   label: 'Unidades',     singular: 'unidad',   plural: 'unidades' },
+  { code: 'km',       label: 'Kilómetros',   singular: 'km',       plural: 'kms' },
+  { code: 'mes',      label: 'Meses',        singular: 'mes',      plural: 'meses' },
+];
+
+export function unitLabel(code: UnitCode | undefined, qty: number): string {
+  const u = UNITS.find(x => x.code === code);
+  if (!u) return '';
+  return Math.abs(qty) === 1 ? u.singular : u.plural;
+}
+
 export interface DocItem {
-  desc:  string;
-  qty:   number;
-  price: number;
-  disc:  number;
+  desc:   string;
+  qty:    number;
+  unit?:  UnitCode;
+  price:  number;
+  disc:   number;
 }
 
 export interface Document {

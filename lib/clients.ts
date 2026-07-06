@@ -4,16 +4,32 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
+export type FiscalCondition = 'consumidor_final' | 'monotributo' | 'responsable_inscripto' | 'exento' | 'otro';
+
+export const FISCAL_CONDITIONS: { code: FiscalCondition; label: string }[] = [
+  { code: 'consumidor_final',     label: 'Consumidor Final' },
+  { code: 'monotributo',          label: 'Monotributo' },
+  { code: 'responsable_inscripto',label: 'Responsable Inscripto' },
+  { code: 'exento',               label: 'Exento' },
+  { code: 'otro',                 label: 'Otro' },
+];
+
 export interface Client {
-  id?:        string;
-  name:       string;
-  email:      string;
-  phone:      string;
-  addr:       string;
-  tags:       string;
-  notes:      string;
-  createdAt?: unknown;
-  updatedAt?: unknown;
+  id?:              string;
+  name:             string;
+  email:            string;
+  phone:            string;
+  addr:             string;
+  tags:             string;
+  notes:            string;
+  company?:         string;
+  cuit?:            string;
+  fiscalCondition?: FiscalCondition;
+  sector?:          string;
+  contactName?:     string;
+  contactRole?:     string;
+  createdAt?:       unknown;
+  updatedAt?:       unknown;
 }
 
 export async function getClients(userId: string): Promise<Client[]> {

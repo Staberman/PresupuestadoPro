@@ -3,26 +3,32 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getClients, createClient, updateClient, deleteClient, Client } from '@/lib/clients';
+import { getClients, createClient, updateClient, deleteClient, Client, FISCAL_CONDITIONS, FiscalCondition } from '@/lib/clients';
 
 export default function ClientsPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
 
-  const [clients, setClients]       = useState<Client[]>([]);
+  const [clients, setClients]             = useState<Client[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
-  const [search, setSearch]         = useState('');
-  const [showModal, setShowModal]   = useState(false);
-  const [editingId, setEditingId]   = useState<string | null>(null);
-  const [saving, setSaving]         = useState(false);
-  const [error, setError]           = useState('');
+  const [search, setSearch]               = useState('');
+  const [showModal, setShowModal]         = useState(false);
+  const [editingId, setEditingId]         = useState<string | null>(null);
+  const [saving, setSaving]               = useState(false);
+  const [error, setError]                 = useState('');
 
-  const [name, setName]   = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [addr, setAddr]   = useState('');
-  const [tags, setTags]   = useState('');
-  const [notes, setNotes] = useState('');
+  const [name, setName]                   = useState('');
+  const [email, setEmail]                 = useState('');
+  const [phone, setPhone]                 = useState('');
+  const [addr, setAddr]                   = useState('');
+  const [tags, setTags]                   = useState('');
+  const [notes, setNotes]                 = useState('');
+  const [company, setCompany]             = useState('');
+  const [cuit, setCuit]                   = useState('');
+  const [fiscalCondition, setFiscalCondition] = useState<FiscalCondition>('consumidor_final');
+  const [sector, setSector]               = useState('');
+  const [contactName, setContactName]     = useState('');
+  const [contactRole, setContactRole]     = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -37,10 +43,15 @@ export default function ClientsPage() {
     }
   }, [user]);
 
+  function resetForm() {
+    setName(''); setEmail(''); setPhone(''); setAddr(''); setTags(''); setNotes('');
+    setCompany(''); setCuit(''); setFiscalCondition('consumidor_final');
+    setSector(''); setContactName(''); setContactRole('');
+  }
+
   function openNew() {
     setEditingId(null);
-    setName(''); setEmail(''); setPhone('');
-    setAddr(''); setTags(''); setNotes('');
+    resetForm();
     setError('');
     setShowModal(true);
   }
@@ -49,6 +60,9 @@ export default function ClientsPage() {
     setEditingId(c.id!);
     setName(c.name); setEmail(c.email); setPhone(c.phone);
     setAddr(c.addr); setTags(c.tags); setNotes(c.notes);
+    setCompany(c.company ?? ''); setCuit(c.cuit ?? '');
+    setFiscalCondition(c.fiscalCondition ?? 'consumidor_final');
+    setSector(c.sector ?? ''); setContactName(c.contactName ?? ''); setContactRole(c.contactRole ?? '');
     setError('');
     setShowModal(true);
   }
@@ -59,7 +73,10 @@ export default function ClientsPage() {
     setSaving(true);
     setError('');
     try {
-      const data: Client = { name, email, phone, addr, tags, notes };
+      const data: Client = {
+        name, email, phone, addr, tags, notes,
+        company, cuit, fiscalCondition, sector, contactName, contactRole,
+      };
       if (editingId) {
         await updateClient(user.uid, editingId, data);
         setClients(clients.map(c => c.id === editingId ? { ...c, ...data } : c));
@@ -88,6 +105,7 @@ export default function ClientsPage() {
   const filtered = clients.filter(c =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.email.toLowerCase().includes(search.toLowerCase()) ||
+    (c.company ?? '').toLowerCase().includes(search.toLowerCase()) ||
     c.phone.includes(search)
   );
 
@@ -133,7 +151,7 @@ export default function ClientsPage() {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, email o teléfono..."
+          placeholder="Buscar por nombre, empresa, email o teléfono..."
           style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #dde3f5', fontSize: '.85rem', outline: 'none', marginBottom: '20px' }}
         />
 
@@ -143,49 +161,60 @@ export default function ClientsPage() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-            {filtered.map(c => (
-              <div key={c.id} style={{ background: 'white', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <div style={{
-                    width: '40px', height: '40px', borderRadius: '50%',
-                    background: '#f0f4ff', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontWeight: '700', color: '#1a56e8', fontSize: '.9rem',
-                  }}>
-                    {c.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+            {filtered.map(c => {
+              const fc = FISCAL_CONDITIONS.find(f => f.code === c.fiscalCondition);
+              return (
+                <div key={c.id} style={{ background: 'white', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '50%',
+                      background: '#f0f4ff', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontWeight: '700', color: '#1a56e8', fontSize: '.9rem',
+                    }}>
+                      {c.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => openEdit(c)} style={{ background: '#f0f4ff', color: '#1a56e8', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
+                        Editar
+                      </button>
+                      <button onClick={() => handleDelete(c.id!)} style={{ background: '#fee2e2', color: '#c41c1c', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
+                        Eliminar
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => openEdit(c)} style={{ background: '#f0f4ff', color: '#1a56e8', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
-                      Editar
-                    </button>
-                    <button onClick={() => handleDelete(c.id!)} style={{ background: '#fee2e2', color: '#c41c1c', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
-                      Eliminar
-                    </button>
-                  </div>
+                  <div style={{ fontWeight: '700', color: '#0e1b3d', marginBottom: '4px' }}>{c.name}</div>
+                  {c.company && <div style={{ fontSize: '.82rem', color: '#364061', fontWeight: 600, marginBottom: '4px' }}>🏢 {c.company}</div>}
+                  {c.email && <div style={{ fontSize: '.82rem', color: '#7888a8', marginBottom: '3px' }}>📧 {c.email}</div>}
+                  {c.phone && <div style={{ fontSize: '.82rem', color: '#7888a8', marginBottom: '3px' }}>📱 {c.phone}</div>}
+                  {(c.cuit || fc || c.sector) && (
+                    <div style={{ fontSize: '.75rem', color: '#7888a8', marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {c.cuit && <span style={{ background: '#f5f7fc', padding: '2px 6px', borderRadius: '4px' }}>CUIT: {c.cuit}</span>}
+                      {fc && <span style={{ background: '#f5f7fc', padding: '2px 6px', borderRadius: '4px' }}>{fc.label}</span>}
+                      {c.sector && <span style={{ background: '#f5f7fc', padding: '2px 6px', borderRadius: '4px' }}>{c.sector}</span>}
+                    </div>
+                  )}
+                  {c.tags && (
+                    <div style={{ marginTop: '10px' }}>
+                      {c.tags.split(',').map(t => t.trim()).filter(Boolean).map(t => (
+                        <span key={t} style={{ background: '#f0f4ff', color: '#1a56e8', borderRadius: '20px', padding: '2px 8px', fontSize: '.7rem', marginRight: '4px' }}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {c.phone && (
+                    <a
+                      href={`https://wa.me/${c.phone.replace(/\D/g, '')}?text=Hola ${encodeURIComponent(c.name)}!`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ display: 'inline-block', marginTop: '12px', background: '#d1fae5', color: '#0a7c4b', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', fontWeight: '600', textDecoration: 'none' }}
+                    >
+                      💬 WhatsApp
+                    </a>
+                  )}
                 </div>
-                <div style={{ fontWeight: '700', color: '#0e1b3d', marginBottom: '6px' }}>{c.name}</div>
-                {c.email && <div style={{ fontSize: '.82rem', color: '#7888a8', marginBottom: '3px' }}>📧 {c.email}</div>}
-                {c.phone && <div style={{ fontSize: '.82rem', color: '#7888a8', marginBottom: '3px' }}>📱 {c.phone}</div>}
-                {c.tags && (
-                  <div style={{ marginTop: '10px' }}>
-                    {c.tags.split(',').map(t => t.trim()).filter(Boolean).map(t => (
-                      <span key={t} style={{ background: '#f0f4ff', color: '#1a56e8', borderRadius: '20px', padding: '2px 8px', fontSize: '.7rem', marginRight: '4px' }}>
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {c.phone && (
-                  <a
-                    href={`https://wa.me/${c.phone.replace(/\D/g, '')}?text=Hola ${encodeURIComponent(c.name)}!`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: 'inline-block', marginTop: '12px', background: '#d1fae5', color: '#0a7c4b', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', fontWeight: '600', textDecoration: 'none' }}
-                  >
-                    💬 WhatsApp
-                  </a>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -193,30 +222,62 @@ export default function ClientsPage() {
       {/* Modal */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,30,80,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '24px' }}>
-          <div style={{ background: 'white', borderRadius: '18px', padding: '32px', width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: 'white', borderRadius: '18px', padding: '32px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0e1b3d', marginBottom: '24px' }}>
               {editingId ? 'Editar cliente' : 'Nuevo cliente'}
             </h2>
             <div style={{ display: 'grid', gap: '14px' }}>
               <div>
-                <label style={lbl}>Nombre *</label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre completo" style={inp} />
+                <label style={lbl}>Nombre / contacto *</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre del contacto" style={inp} />
               </div>
               <div>
-                <label style={lbl}>Email</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="cliente@email.com" style={inp} />
+                <label style={lbl}>Razón social / empresa</label>
+                <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Empresa SA" style={inp} />
               </div>
-              <div>
-                <label style={lbl}>Teléfono</label>
-                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+54 9 11..." style={inp} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={lbl}>Email</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="cliente@email.com" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Teléfono</label>
+                  <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+54 9 11..." style={inp} />
+                </div>
               </div>
               <div>
                 <label style={lbl}>Dirección</label>
                 <input value={addr} onChange={e => setAddr(e.target.value)} placeholder="Dirección" style={inp} />
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={lbl}>CUIT/CUIL</label>
+                  <input value={cuit} onChange={e => setCuit(e.target.value)} placeholder="20-12345678-9" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Condición fiscal</label>
+                  <select value={fiscalCondition} onChange={e => setFiscalCondition(e.target.value as FiscalCondition)} style={inp}>
+                    {FISCAL_CONDITIONS.map(f => <option key={f.code} value={f.code}>{f.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Rubro / sector</label>
+                <input value={sector} onChange={e => setSector(e.target.value)} placeholder="Ej: Tecnología, Construcción" style={inp} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={lbl}>Contacto (nombre)</label>
+                  <input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Persona de contacto" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Cargo</label>
+                  <input value={contactRole} onChange={e => setContactRole(e.target.value)} placeholder="Ej: Gerente, Compras" style={inp} />
+                </div>
+              </div>
               <div>
                 <label style={lbl}>Tags (separados por coma)</label>
-                <input value={tags} onChange={e => setTags(e.target.value)} placeholder="electricista, residencial" style={inp} />
+                <input value={tags} onChange={e => setTags(e.target.value)} placeholder="vip, recurrente" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Notas</label>

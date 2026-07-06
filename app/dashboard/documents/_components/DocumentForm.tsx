@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { createDocument, updateDocument, DocItem, Document } from '@/lib/documents';
+import { createDocument, updateDocument, DocItem, Document, UNITS } from '@/lib/documents';
+import { getServices, Service } from '@/lib/services';
 
-const emptyItem = (): DocItem => ({ desc: '', qty: 1, price: 0, disc: 0 });
+const emptyItem = (): DocItem => ({ desc: '', qty: 1, unit: 'hora', price: 0, disc: 0 });
 
 interface Props {
   mode: 'new' | 'edit';
@@ -31,10 +32,25 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
   const [ivaRate, setIvaRate]         = useState(initial?.ivaRate ?? 0);
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState('');
+  const [services, setServices]       = useState<Service[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      getServices(user.uid).then(setServices).catch(() => {});
+    }
+  }, [user]);
 
   function updateItem(i: number, field: keyof DocItem, value: string | number) {
     const next = [...items];
     (next[i] as Record<keyof DocItem, string | number>)[field] = value;
+    setItems(next);
+  }
+
+  function applyService(i: number, serviceId: string) {
+    const s = services.find(x => x.id === serviceId);
+    if (!s) return;
+    const next = [...items];
+    next[i] = { ...next[i], desc: s.name, unit: s.unit, price: s.price };
     setItems(next);
   }
 
@@ -171,20 +187,43 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
         </div>
 
         <div style={card}>
-          <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d', marginBottom: '16px' }}>Ítems</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d' }}>Ítems</h2>
+            {services.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '.75rem', color: '#7888a8' }}>Agregar del catálogo:</span>
+                <select
+                  onChange={e => { if (e.target.value) applyService(items.length - 1, e.target.value); e.target.value = ''; }}
+                  defaultValue=""
+                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #dde3f5', fontSize: '.8rem', color: '#0e1b3d', background: 'white' }}
+                >
+                  <option value="" disabled>Elegir servicio…</option>
+                  {services.filter(s => s.active).map(s => (
+                    <option key={s.id} value={s.id}>{s.name} — ${s.price.toLocaleString('es-AR')}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           {items.map((it, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr auto', gap: '8px', marginBottom: '10px', alignItems: 'end' }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr 1fr auto', gap: '8px', marginBottom: '10px', alignItems: 'end' }}>
               <div>
                 {i === 0 && <label style={lbl}>Descripción</label>}
                 <input value={it.desc} onChange={e => updateItem(i, 'desc', e.target.value)} placeholder="Descripción del servicio" style={inp} />
               </div>
               <div>
                 {i === 0 && <label style={lbl}>Cant.</label>}
-                <input type="number" value={it.qty} onChange={e => updateItem(i, 'qty', +e.target.value)} min="1" style={inp} />
+                <input type="number" value={it.qty} onChange={e => updateItem(i, 'qty', +e.target.value)} min="0" step="any" style={inp} />
               </div>
               <div>
-                {i === 0 && <label style={lbl}>Precio</label>}
-                <input type="number" value={it.price} onChange={e => updateItem(i, 'price', +e.target.value)} min="0" style={inp} />
+                {i === 0 && <label style={lbl}>Unidad</label>}
+                <select value={it.unit ?? 'hora'} onChange={e => updateItem(i, 'unit', e.target.value)} style={inp}>
+                  {UNITS.map(u => <option key={u.code} value={u.code}>{u.singular}</option>)}
+                </select>
+              </div>
+              <div>
+                {i === 0 && <label style={lbl}>Tarifa</label>}
+                <input type="number" value={it.price} onChange={e => updateItem(i, 'price', +e.target.value)} min="0" step="any" style={inp} />
               </div>
               <div>
                 {i === 0 && <label style={lbl}>Desc.%</label>}
