@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getDocuments, calcTotal, Document } from '@/lib/documents';
 import { getClients, Client } from '@/lib/clients';
+import { normalizeStatus } from '@/lib/status';
 
 export default function DashboardPage() {
   const { user, profile, loading, isPro, logout } = useAuth();
@@ -51,7 +52,7 @@ export default function DashboardPage() {
     .filter(d => (d.dateIssue || '').startsWith(monthKey))
     .reduce((a, d) => a + calcTotal(d), 0);
   const pendingToCollect = docs
-    .filter(d => d.type === 'factura' && (d.status === 'pending' || d.status === 'accepted'))
+    .filter(d => d.type === 'factura' && ['enviado', 'aceptado'].includes(normalizeStatus(d.status)))
     .reduce((a, d) => a + calcTotal(d), 0);
 
   const stats = [

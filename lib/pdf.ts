@@ -1,22 +1,34 @@
 import jsPDF from 'jspdf';
-import { Document, calcTotal } from '@/lib/documents';
+import { Document, DocItem, calcTotal, unitLabel } from '@/lib/documents';
+import { statusLabel } from '@/lib/status';
 
 function fmt(n: number) {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 2 });
 }
 
-export function generatePDF(doc: Document, biz: {
-  name: string;
-  address: string;
-  phone: string;
-  email: string;
-  cuit: string;
-}, isPro: boolean) {
+export interface BizPdf {
+  name:     string;
+  address:  string;
+  phone:    string;
+  email:    string;
+  cuit:     string;
+  currency: string;
+  footer:   string;
+}
+
+function lineTotal(it: DocItem): number {
+  const line = it.qty * it.price;
+  return line - line * (it.disc || 0) / 100;
+}
+
+export function generatePDF(doc: Document, biz: BizPdf, isPro: boolean) {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210;
   const lm = 15;
   const rm = W - lm;
   const cw = rm - lm;
+  const cur = biz.currency || 'ARS';
+  const money = (n: number) => `${cur === 'ARS' ? '$' : cur + ' '}${fmt(n)}`;
   let y = 0;
 
   // ── HEADER ──────────────────────────────────────────
@@ -31,7 +43,12 @@ export function generatePDF(doc: Document, biz: {
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(147, 173, 245);
-  const bizLines = [biz.address, biz.phone, biz.email, biz.cuit ? `CUIT: ${biz.cuit}` : ''].filter(Boolean);
+  const bizLines = [
+    biz.address,
+    biz.phone,
+    biz.email,
+    biz.cuit ? `CUIT: ${biz.cuit}` : '',
+  ].filter(Boolean);
   bizLines.forEach((line, i) => pdf.text(line, lm, 24 + i * 4.5));
 
   // Doc type badge
@@ -46,29 +63,54 @@ export function generatePDF(doc: Document, biz: {
   pdf.setFont('helvetica', 'normal');
   pdf.text(`N° ${doc.num || '0001'}`, rm - 26, 21, { align: 'center' });
 
-  y = 52;
+  y = 50;
 
   // ── INFO ROW ─────────────────────────────────────────
-  pdf.setFillColor(240, 244, 255);
-  pdf.rect(lm, y, cw, 28, 'F');
+  // La altura depende de cuántos datos del cliente haya
+  const clientLines: string[] = [];
+  if (doc.clientCompany) clientLines.push(doc.clientCompany);
+  if (doc.clientCuit) clientLines.push(`CUIT/CUIL: ${doc.clientCuit}`);
+  if (doc.clientFiscalCondition) clientLines.push(`Condición fiscal: ${doc.clientFiscalCondition}`);
+  if (doc.clientAddr) clientLines.push(doc.clientAddr);
+  const contactLine = [doc.clientContactName, doc.clientContactRole].filter(Boolean).join(' · ');
+  if (contactLine) clientLines.push(contactLine);
+  const contactLines: string[] = [];
+  if (doc.clientPhone) contactLines.push(`Tel: ${doc.clientPhone}`);
+  if (doc.clientEmail) contactLines.push(`Email: ${doc.clientEmail}`);
 
-  // Client info
+  const infoHeight = Math.max(28, 14 + (doc.clientName ? 5 : 0) + clientLines.length * 4.2 + contactLines.length * 4.2 + 4);
+
+  pdf.setFillColor(240, 244, 255);
+  pdf.rect(lm, y, cw, infoHeight, 'F');
+
+  // Client info (left)
   pdf.setTextColor(120, 136, 168);
   pdf.setFontSize(7);
   pdf.setFont('helvetica', 'bold');
   pdf.text('CLIENTE', lm + 4, y + 6);
-  pdf.setTextColor(14, 27, 61);
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(doc.clientName || '—', lm + 4, y + 13);
+
+  let cy = y + 12;
+  if (doc.clientName) {
+    pdf.setTextColor(14, 27, 61);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(doc.clientName, lm + 4, cy);
+    cy += 5;
+  }
+  pdf.setTextColor(120, 136, 168);
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(120, 136, 168);
-  if (doc.clientPhone) pdf.text(`Tel: ${doc.clientPhone}`, lm + 4, y + 19);
-  if (doc.clientEmail) pdf.text(`Email: ${doc.clientEmail}`, lm + 4, y + 24);
+  clientLines.forEach(line => {
+    pdf.text(line, lm + 4, cy);
+    cy += 4.2;
+  });
+  contactLines.forEach(line => {
+    pdf.text(line, lm + 4, cy);
+    cy += 4.2;
+  });
 
-  // Dates
-  const dateX = rm - 55;
+  // Dates + status (right)
+  const dateX = rm - 60;
   pdf.setTextColor(120, 136, 168);
   pdf.setFontSize(7);
   pdf.setFont('helvetica', 'bold');
@@ -87,47 +129,72 @@ export function generatePDF(doc: Document, biz: {
     pdf.setFont('helvetica', 'normal');
     pdf.text(doc.dateExpiry, dateX, y + 25);
   }
+  // Estado
+  pdf.setTextColor(120, 136, 168);
+  pdf.setFontSize(7);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('ESTADO', dateX, y + (doc.dateExpiry ? 32 : 19));
+  pdf.setTextColor(14, 27, 61);
+  pdf.setFontSize(9);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(statusLabel(doc.status), dateX, y + (doc.dateExpiry ? 38 : 25));
 
-  y += 36;
+  y += infoHeight + 8;
 
   // ── ITEMS TABLE ──────────────────────────────────────
-  // Header
+  // Columnas: Descripción | Cant. | Unidad | Tarifa | Desc.% | Total
+  // posiciones x absolutas:
+  const xDesc  = lm + 3;
+  const xQty   = lm + 96;
+  const xUnit  = lm + 114;
+  const xPrice = lm + 138;
+  const xDisc  = lm + 162;
+  const xTotal = rm - 3;
+
   pdf.setFillColor(15, 45, 110);
   pdf.rect(lm, y, cw, 8, 'F');
   pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(7.5);
+  pdf.setFontSize(7);
   pdf.setFont('helvetica', 'bold');
-  pdf.text('DESCRIPCIÓN', lm + 3, y + 5.5);
-  pdf.text('CANT.', lm + 98, y + 5.5, { align: 'center' });
-  pdf.text('PRECIO UNIT.', lm + 124, y + 5.5, { align: 'center' });
-  pdf.text('DESC.%', lm + 150, y + 5.5, { align: 'center' });
-  pdf.text('TOTAL', rm - 3, y + 5.5, { align: 'right' });
+  pdf.text('DESCRIPCIÓN', xDesc, y + 5.5);
+  pdf.text('CANT.', xQty, y + 5.5, { align: 'center' });
+  pdf.text('UNIDAD', xUnit, y + 5.5, { align: 'center' });
+  pdf.text('TARIFA', xPrice, y + 5.5, { align: 'center' });
+  pdf.text('DESC.%', xDisc, y + 5.5, { align: 'center' });
+  pdf.text('TOTAL', xTotal, y + 5.5, { align: 'right' });
   y += 8;
 
-  // Rows
+  // Rows (con altura dinámica según descripción)
   doc.items.forEach((it, i) => {
-    const lineTotal = it.qty * it.price;
-    const lineDisc  = lineTotal * (it.disc || 0) / 100;
-    const lineFinal = lineTotal - lineDisc;
+    const lineFinal = lineTotal(it);
+    const descLines = pdf.splitTextToSize(it.desc || '', 88);
+    const rowH = Math.max(9, descLines.length * 4 + 4);
+
+    if (y + rowH > 240) {
+      pdf.addPage();
+      y = 20;
+    }
 
     if (i % 2 === 0) {
       pdf.setFillColor(248, 250, 255);
-      pdf.rect(lm, y, cw, 9, 'F');
+      pdf.rect(lm, y, cw, rowH, 'F');
     }
 
     pdf.setTextColor(14, 27, 61);
     pdf.setFontSize(8);
     pdf.setFont('helvetica', 'normal');
-    const descLines = pdf.splitTextToSize(it.desc, 85);
-    pdf.text(descLines[0], lm + 3, y + 6);
+    pdf.text(descLines, xDesc, y + 5);
+
     pdf.setTextColor(120, 136, 168);
-    pdf.text(String(it.qty), lm + 98, y + 6, { align: 'center' });
-    pdf.text(`$${fmt(it.price)}`, lm + 124, y + 6, { align: 'center' });
-    pdf.text(it.disc ? `${it.disc}%` : '—', lm + 150, y + 6, { align: 'center' });
+    pdf.text(String(it.qty), xQty, y + 5, { align: 'center' });
+    pdf.text(unitLabel(it.unit, it.qty) || '—', xUnit, y + 5, { align: 'center' });
+    pdf.text(money(it.price), xPrice, y + 5, { align: 'center' });
+    pdf.text(it.disc ? `${it.disc}%` : '—', xDisc, y + 5, { align: 'center' });
+
     pdf.setTextColor(14, 27, 61);
     pdf.setFont('helvetica', 'bold');
-    pdf.text(`$${fmt(lineFinal)}`, rm - 3, y + 6, { align: 'right' });
-    y += 9;
+    pdf.text(money(lineFinal), xTotal, y + 5, { align: 'right' });
+    y += rowH;
   });
 
   // ── TOTALS ───────────────────────────────────────────
@@ -148,14 +215,11 @@ export function generatePDF(doc: Document, biz: {
     y += bold ? 8 : 6;
   }
 
-  const sub = doc.items.reduce((a, it) => {
-    const line = it.qty * it.price;
-    return a + line - line * (it.disc || 0) / 100;
-  }, 0);
+  const sub = doc.items.reduce((a, it) => a + lineTotal(it), 0);
 
-  totRow('Subtotal:', `$${fmt(sub)}`);
-  if (doc.discount) totRow(`Descuento (${doc.discount}%):`, `-$${fmt(sub * doc.discount / 100)}`);
-  if (doc.ivaRate)  totRow(`IVA (${doc.ivaRate}%):`, `$${fmt((sub - sub * (doc.discount || 0) / 100) * doc.ivaRate / 100)}`);
+  totRow('Subtotal:', money(sub));
+  if (doc.discount) totRow(`Descuento (${doc.discount}%):`, `-${money(sub * doc.discount / 100)}`);
+  if (doc.ivaRate)  totRow(`IVA (${doc.ivaRate}%):`, money((sub - sub * (doc.discount || 0) / 100) * doc.ivaRate / 100));
 
   // Total box
   pdf.setFillColor(15, 45, 110);
@@ -164,7 +228,7 @@ export function generatePDF(doc: Document, biz: {
   pdf.setFontSize(11);
   pdf.setFont('helvetica', 'bold');
   pdf.text('TOTAL:', totX, y + 7);
-  pdf.text(`$${fmt(calcTotal(doc))}`, rm - 3, y + 7, { align: 'right' });
+  pdf.text(money(calcTotal(doc)), rm - 3, y + 7, { align: 'right' });
   y += 20;
 
   // ── NOTES ────────────────────────────────────────────
@@ -203,7 +267,11 @@ export function generatePDF(doc: Document, biz: {
   pdf.setTextColor(120, 136, 168);
   pdf.setFontSize(7);
   pdf.setFont('helvetica', 'normal');
-  pdf.text('Generado con PresupuestoPro', W / 2, 291, { align: 'center' });
+  const footerText = biz.footer || 'Generado con PresupuestoPro';
+  pdf.text(footerText, W / 2, 288, { align: 'center' });
+  pdf.setFontSize(6);
+  pdf.setTextColor(160, 170, 195);
+  pdf.text('Generado con PresupuestoPro', W / 2, 293, { align: 'center' });
 
   const fname = `${doc.type}-${doc.num || '001'}-${(doc.clientName || 'cliente').replace(/[^a-z0-9]/gi, '_')}.pdf`;
   pdf.save(fname);

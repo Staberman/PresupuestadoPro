@@ -4,7 +4,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-export type DocStatus = 'draft' | 'pending' | 'accepted' | 'rejected' | 'expired' | 'paid';
+export type DocStatus = 'draft' | 'enviado' | 'aceptado' | 'rechazado' | 'vencido' | 'facturado' | 'paid';
+// 'pending' se mantiene por retrocompatibilidad con documentos existentes;
+// se trata como 'enviado' en la UI.
 export type DocType   = 'presupuesto' | 'factura';
 
 export type UnitCode = 'hora' | 'dia' | 'semana' | 'proyecto' | 'unidad' | 'km' | 'mes';
@@ -34,23 +36,28 @@ export interface DocItem {
 }
 
 export interface Document {
-  id?:          string;
-  type:         DocType;
-  num:          string;
-  status:       DocStatus;
-  clientName:   string;
-  clientEmail:  string;
-  clientPhone:  string;
-  clientAddr:   string;
-  items:        DocItem[];
-  notes:        string;
-  discount:     number;
-  ivaRate:      number;
-  dateIssue:    string;
-  dateExpiry:   string;
-  fromDocId?:   string; // if this invoice came from a quote
-  createdAt?:   unknown;
-  updatedAt?:   unknown;
+  id?:                    string;
+  type:                   DocType;
+  num:                    string;
+  status:                 DocStatus;
+  clientName:             string;
+  clientEmail:            string;
+  clientPhone:            string;
+  clientAddr:             string;
+  clientCompany?:         string;
+  clientCuit?:            string;
+  clientFiscalCondition?: string;
+  clientContactName?:     string;
+  clientContactRole?:     string;
+  items:                  DocItem[];
+  notes:                  string;
+  discount:               number;
+  ivaRate:                number;
+  dateIssue:              string;
+  dateExpiry:             string;
+  fromDocId?:             string; // if this invoice came from a quote
+  createdAt?:             unknown;
+  updatedAt?:             unknown;
 }
 
 export async function getDocuments(userId: string): Promise<Document[]> {
@@ -117,12 +124,12 @@ export async function convertToInvoice(userId: string, quoteId: string, nextNum:
     ...quote,
     type:       'factura',
     num:        nextNum,
-    status:     'pending',
+    status:     'enviado',
     fromDocId:  quoteId,
   }, 'pro'); // conversion always allowed
 
-  // Mark quote as accepted
-  await updateDocument(userId, quoteId, { status: 'accepted' });
+  // Mark quote as facturado
+  await updateDocument(userId, quoteId, { status: 'facturado' });
 
   return invoiceId;
 }

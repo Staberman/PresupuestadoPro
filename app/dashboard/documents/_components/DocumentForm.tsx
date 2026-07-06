@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { createDocument, updateDocument, DocItem, Document, UNITS } from '@/lib/documents';
 import { getServices, Service } from '@/lib/services';
+import { getClients, Client, FISCAL_CONDITIONS } from '@/lib/clients';
 
 const emptyItem = (): DocItem => ({ desc: '', qty: 1, unit: 'hora', price: 0, disc: 0 });
 
@@ -24,6 +25,11 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
   const [clientEmail, setClientEmail] = useState(initial?.clientEmail ?? '');
   const [clientPhone, setClientPhone] = useState(initial?.clientPhone ?? '');
   const [clientAddr, setClientAddr]   = useState(initial?.clientAddr ?? '');
+  const [clientCompany, setClientCompany]         = useState(initial?.clientCompany ?? '');
+  const [clientCuit, setClientCuit]               = useState(initial?.clientCuit ?? '');
+  const [clientFiscalCondition, setClientFiscalCondition] = useState(initial?.clientFiscalCondition ?? '');
+  const [clientContactName, setClientContactName] = useState(initial?.clientContactName ?? '');
+  const [clientContactRole, setClientContactRole] = useState(initial?.clientContactRole ?? '');
   const [dateIssue, setDateIssue]     = useState(initial?.dateIssue ?? new Date().toISOString().split('T')[0]);
   const [dateExpiry, setDateExpiry]   = useState(initial?.dateExpiry ?? '');
   const [items, setItems]             = useState<DocItem[]>(initial?.items?.length ? initial.items : [emptyItem()]);
@@ -33,12 +39,29 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState('');
   const [services, setServices]       = useState<Service[]>([]);
+  const [clients, setClients]         = useState<Client[]>([]);
 
   useEffect(() => {
     if (user) {
       getServices(user.uid).then(setServices).catch(() => {});
+      getClients(user.uid).then(setClients).catch(() => {});
     }
   }, [user]);
+
+  function applyClient(clientId: string) {
+    const c = clients.find(x => x.id === clientId);
+    if (!c) return;
+    setClientName(c.name);
+    setClientEmail(c.email);
+    setClientPhone(c.phone);
+    setClientAddr(c.addr);
+    setClientCompany(c.company ?? '');
+    setClientCuit(c.cuit ?? '');
+    const fc = FISCAL_CONDITIONS.find(f => f.code === c.fiscalCondition);
+    setClientFiscalCondition(fc ? fc.label : (c.fiscalCondition ?? ''));
+    setClientContactName(c.contactName ?? '');
+    setClientContactRole(c.contactRole ?? '');
+  }
 
   function updateItem(i: number, field: keyof DocItem, value: string | number) {
     const next = [...items];
@@ -79,8 +102,10 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
       const docData: Document = {
         type,
         num: num || `${type === 'presupuesto' ? 'P' : 'F'}-${Date.now()}`,
-        status: initial?.status ?? 'pending',
+        status: initial?.status ?? 'draft',
         clientName, clientEmail, clientPhone, clientAddr,
+        clientCompany, clientCuit, clientFiscalCondition,
+        clientContactName, clientContactRole,
         items, notes, discount, ivaRate,
         dateIssue, dateExpiry,
       };
@@ -165,11 +190,32 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
         </div>
 
         <div style={card}>
-          <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d', marginBottom: '16px' }}>Cliente</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d' }}>Cliente</h2>
+            {clients.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '.75rem', color: '#7888a8' }}>Cargar de clientes:</span>
+                <select
+                  onChange={e => { if (e.target.value) applyClient(e.target.value); e.target.value = ''; }}
+                  defaultValue=""
+                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #dde3f5', fontSize: '.8rem', color: '#0e1b3d', background: 'white' }}
+                >
+                  <option value="" disabled>Elegir cliente…</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={lbl}>Nombre *</label>
+            <div>
+              <label style={lbl}>Nombre / contacto *</label>
               <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nombre del cliente" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Razón social / empresa</label>
+              <input value={clientCompany} onChange={e => setClientCompany(e.target.value)} placeholder="Empresa SA" style={inp} />
             </div>
             <div>
               <label style={lbl}>Email</label>
@@ -178,6 +224,25 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
             <div>
               <label style={lbl}>Teléfono</label>
               <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="+54 9 11..." style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>CUIT/CUIL</label>
+              <input value={clientCuit} onChange={e => setClientCuit(e.target.value)} placeholder="20-12345678-9" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Condición fiscal</label>
+              <select value={clientFiscalCondition} onChange={e => setClientFiscalCondition(e.target.value)} style={inp}>
+                <option value="">— Sin especificar —</option>
+                {FISCAL_CONDITIONS.map(f => <option key={f.code} value={f.label}>{f.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Contacto (nombre)</label>
+              <input value={clientContactName} onChange={e => setClientContactName(e.target.value)} placeholder="Persona de contacto" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Cargo</label>
+              <input value={clientContactRole} onChange={e => setClientContactRole(e.target.value)} placeholder="Ej: Gerente" style={inp} />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={lbl}>Dirección</label>

@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getDocuments, deleteDocument, convertToInvoice, calcTotal, Document } from '@/lib/documents';
-import { generatePDF } from '@/lib/pdf';
+import { getDocuments, deleteDocument, convertToInvoice, updateDocument, calcTotal, Document, DocStatus } from '@/lib/documents';
+import { generatePDF, BizPdf } from '@/lib/pdf';
+import { statusMeta, normalizeStatus, shouldExpire, STATUS_META } from '@/lib/status';
 
 export default function DocumentsPage() {
   const { user, loading, isPro } = useAuth();
@@ -14,6 +15,7 @@ export default function DocumentsPage() {
   const [docsLoading, setDocsLoading] = useState(true);
   const [filter, setFilter]           = useState<'all' | 'presupuesto' | 'factura'>('all');
   const [search, setSearch]           = useState('');
+  const [biz, setBiz]                 = useState<BizPdf>({ name: '', address: '', phone: '', email: '', cuit: '', currency: 'ARS', footer: '' });
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -21,11 +23,38 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     if (user) {
-      getDocuments(user.uid).then(data => {
+      getDocuments(user.uid).then(async (data) => {
+        // Auto-vencer presupuestos cuya fecha de vencimiento ya pasó
+        const toExpire = data.filter(d =>
+          d.type === 'presupuesto' &&
+          d.id &&
+          shouldExpire(normalizeStatus(d.status), d.dateExpiry)
+        );
+        if (toExpire.length) {
+          await Promise.all(
+            toExpire.map(d => updateDocument(user.uid, d.id!, { status: 'vencido' }))
+          );
+          data = data.map(d =>
+            toExpire.find(t => t.id === d.id) ? { ...d, status: 'vencido' as DocStatus } : d
+          );
+        }
         setDocs(data);
         setDocsLoading(false);
       });
     }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    import('firebase/firestore').then(({ doc, getDoc }) => {
+      import('@/lib/firebase').then(({ db }) => {
+        getDoc(doc(db, 'users', user.uid)).then(snap => {
+          if (snap.exists() && snap.data().biz) {
+            setBiz(b => ({ ...b, ...(snap.data().biz as Partial<BizPdf>) }));
+          }
+        });
+      });
+    });
   }, [user]);
 
   const filtered = docs.filter(d => {
@@ -50,16 +79,14 @@ export default function DocumentsPage() {
     alert('✓ Factura creada correctamente');
   }
 
+  async function handleStatusChange(id: string, status: DocStatus) {
+    if (!user) return;
+    setDocs(docs.map(d => d.id === id ? { ...d, status } : d));
+    await updateDocument(user.uid, id, { status });
+  }
+
   function statusChip(status: string) {
-    const map: Record<string, { label: string; color: string; bg: string }> = {
-      draft:    { label: 'Borrador',  color: '#7888a8', bg: '#f0f4ff' },
-      pending:  { label: 'Pendiente', color: '#b45309', bg: '#fef3c7' },
-      accepted: { label: 'Aprobado',  color: '#0a7c4b', bg: '#d1fae5' },
-      rejected: { label: 'Rechazado', color: '#c41c1c', bg: '#fee2e2' },
-      expired:  { label: 'Vencido',   color: '#c41c1c', bg: '#fee2e2' },
-      paid:     { label: 'Cobrado',   color: '#0a7c4b', bg: '#d1fae5' },
-    };
-    const s = map[status] || map.pending;
+    const s = statusMeta(status);
     return (
       <span style={{
         background: s.bg, color: s.color,
@@ -71,20 +98,9 @@ export default function DocumentsPage() {
     );
   }
 
-  const [biz, setBiz] = useState({ name: '', address: '', phone: '', email: '', cuit: '' });
+  const docStatusOptions: DocStatus[] = ['draft', 'enviado', 'aceptado', 'rechazado', 'facturado', 'vencido', 'paid'];
+  const invoiceStatusOptions: DocStatus[] = ['draft', 'enviado', 'paid'];
 
-useEffect(() => {
-  if (!user) return;
-  import('firebase/firestore').then(({ doc, getDoc }) => {
-    import('@/lib/firebase').then(({ db }) => {
-      getDoc(doc(db, 'users', user.uid)).then(snap => {
-        if (snap.exists() && snap.data().biz) {
-          setBiz(snap.data().biz);
-        }
-      });
-    });
-  });
-}, [user]);
   if (loading || docsLoading) {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f7fc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -142,55 +158,80 @@ useEffect(() => {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {filtered.map(d => (
-              <div key={d.id} style={{ background: 'white', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '.72rem', fontWeight: '700', color: '#7888a8', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                        {d.type} #{d.num}
-                      </span>
-                      {statusChip(d.status)}
-                      {d.fromDocId && (
-                        <span style={{ fontSize: '.68rem', color: '#0e7490', background: '#cffafe', borderRadius: '20px', padding: '2px 8px' }}>
-                          desde presupuesto
+            {filtered.map(d => {
+              const nstatus = normalizeStatus(d.status);
+              const canConvert = d.type === 'presupuesto' && ['draft', 'enviado', 'aceptado'].includes(nstatus);
+              const options = d.type === 'factura' ? invoiceStatusOptions : docStatusOptions;
+              return (
+                <div key={d.id} style={{ background: 'white', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '.72rem', fontWeight: '700', color: '#7888a8', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                          {d.type} #{d.num}
                         </span>
-                      )}
+                        {statusChip(d.status)}
+                        {d.fromDocId && (
+                          <span style={{ fontSize: '.68rem', color: '#0e7490', background: '#cffafe', borderRadius: '20px', padding: '2px 8px' }}>
+                            desde presupuesto
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontWeight: '700', color: '#0e1b3d', marginBottom: '4px' }}>
+                        {d.clientName || 'Sin nombre'}
+                      </div>
+                      <div style={{ fontSize: '.82rem', color: '#7888a8' }}>
+                        {d.dateIssue} · {d.items.length} ítem{d.items.length !== 1 ? 's' : ''}
+                      </div>
+                      <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '.72rem', color: '#7888a8' }}>Estado:</span>
+                        <select
+                          value={nstatus}
+                          onChange={e => handleStatusChange(d.id!, e.target.value as DocStatus)}
+                          style={{
+                            padding: '4px 8px', borderRadius: '6px',
+                            border: '1px solid ' + (statusMeta(nstatus).color + '55'),
+                            background: statusMeta(nstatus).bg,
+                            color: statusMeta(nstatus).color,
+                            fontSize: '.72rem', fontWeight: 600, cursor: 'pointer', outline: 'none',
+                          }}
+                        >
+                          {options.map(s => (
+                            <option key={s} value={s} style={{ color: '#0e1b3d', background: 'white' }}>
+                              {STATUS_META[s].label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div style={{ fontWeight: '700', color: '#0e1b3d', marginBottom: '4px' }}>
-                      {d.clientName || 'Sin nombre'}
-                    </div>
-                    <div style={{ fontSize: '.82rem', color: '#7888a8' }}>
-                      {d.dateIssue} · {d.items.length} ítem{d.items.length !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0e1b3d' }}>
-                      ${calcTotal(d).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px', justifyContent: 'flex-end' }}>
-                      {d.type === 'presupuesto' && d.status !== 'accepted' && (
-                        <button onClick={() => handleConvert(d.id!)} style={{ background: '#0a7c4b', color: 'white', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
-                          → Factura
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0e1b3d' }}>
+                        ${calcTotal(d).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        {canConvert && (
+                          <button onClick={() => handleConvert(d.id!)} style={{ background: '#0a7c4b', color: 'white', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
+                            → Factura
+                          </button>
+                        )}
+                        <button
+                          onClick={() => generatePDF(d, biz, isPro)}
+                          style={{ background: '#f0f4ff', color: '#0f2d6e', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}
+                        >
+                          📄 PDF
                         </button>
-                      )}
-                      
-                      <button
-  onClick={() => generatePDF(d, biz, isPro)}
-  style={{ background: '#f0f4ff', color: '#0f2d6e', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}
->
-  📄 PDF
-</button><button onClick={() => router.push(`/dashboard/documents/${d.id}/edit`)} style={{ background: '#f0f4ff', color: '#1a56e8', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
-                        Editar
-                      </button>
-                      <button onClick={() => handleDelete(d.id!)} style={{ background: '#fee2e2', color: '#c41c1c', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
-                        Eliminar
-                      </button>
+                        <button onClick={() => router.push(`/dashboard/documents/${d.id}/edit`)} style={{ background: '#f0f4ff', color: '#1a56e8', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
+                          Editar
+                        </button>
+                        <button onClick={() => handleDelete(d.id!)} style={{ background: '#fee2e2', color: '#c41c1c', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
