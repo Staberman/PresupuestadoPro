@@ -192,6 +192,7 @@ export default function DashboardPage() {
               { label: '+ Nuevo presupuesto', bg: '#1a56e8', href: '/dashboard/documents/new' },
               { label: '+ Nueva factura', bg: '#0a7c4b', href: '/dashboard/documents/new' },
               { label: '+ Nuevo cliente', bg: '#0e7490', href: '/dashboard/clients' },
+              { label: '📁 Proyectos', bg: '#6d28d9', href: '/dashboard/projects' },
               { label: '🛠️ Catálogo de servicios', bg: '#7c2d12', href: '/dashboard/services' },
             ].map(action => (
               <button key={action.label} onClick={() => router.push(action.href)} style={{
