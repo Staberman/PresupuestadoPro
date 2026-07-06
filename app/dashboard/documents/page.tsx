@@ -7,7 +7,7 @@ import { getDocuments, deleteDocument, convertToInvoice, calcTotal, Document } f
 import { generatePDF } from '@/lib/pdf';
 
 export default function DocumentsPage() {
-  const { user, profile, loading, isPro } = useAuth();
+  const { user, loading, isPro } = useAuth();
   const router = useRouter();
 
   const [docs, setDocs]               = useState<Document[]>([]);

@@ -12,8 +12,8 @@ export interface Client {
   addr:       string;
   tags:       string;
   notes:      string;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 export async function getClients(userId: string): Promise<Client[]> {

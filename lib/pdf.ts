@@ -1,12 +1,6 @@
 import jsPDF from 'jspdf';
 import { Document, calcTotal } from '@/lib/documents';
 
-const BLUE      = '#0f2d6e';
-const BLUE_MED  = '#1a56e8';
-const GRAY      = '#7888a8';
-const DARK      = '#0e1b3d';
-const LINE      = '#dde3f5';
-
 function fmt(n: number) {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 2 });
 }

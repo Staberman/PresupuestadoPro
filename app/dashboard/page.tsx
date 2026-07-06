@@ -1,19 +1,34 @@
 'use client';
 
-import { generatePDF } from '@/lib/pdf';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { getDocuments, calcTotal, Document } from '@/lib/documents';
+import { getClients, Client } from '@/lib/clients';
 
 export default function DashboardPage() {
   const { user, profile, loading, isPro, logout } = useAuth();
   const router = useRouter();
 
+  const [docs, setDocs]           = useState<Document[]>([]);
+  const [clients, setClients]     = useState<Client[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
+    if (!loading && !user) router.push('/login');
   }, [user, loading, router]);
+
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([
+      getDocuments(user.uid),
+      getClients(user.uid),
+    ]).then(([d, c]) => {
+      setDocs(d);
+      setClients(c);
+      setStatsLoading(false);
+    });
+  }, [user]);
 
   if (loading) {
     return (
@@ -29,6 +44,22 @@ export default function DashboardPage() {
   }
 
   if (!user) return null;
+
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const emittedThisMonth = docs
+    .filter(d => (d.dateIssue || '').startsWith(monthKey))
+    .reduce((a, d) => a + calcTotal(d), 0);
+  const pendingToCollect = docs
+    .filter(d => d.type === 'factura' && (d.status === 'pending' || d.status === 'accepted'))
+    .reduce((a, d) => a + calcTotal(d), 0);
+
+  const stats = [
+    { label: 'Documentos', value: statsLoading ? '—' : String(docs.length), icon: '📄', href: '/dashboard/documents' },
+    { label: 'Clientes', value: statsLoading ? '—' : String(clients.length), icon: '👥', href: '/dashboard/clients' },
+    { label: 'Emitido este mes', value: statsLoading ? '—' : `$${emittedThisMonth.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`, icon: '💰', href: '/dashboard/documents' },
+    { label: 'Por cobrar', value: statsLoading ? '—' : `$${pendingToCollect.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`, icon: '⏳', href: '/dashboard/documents' },
+  ];
 
   return (
     <div style={{
@@ -78,12 +109,7 @@ export default function DashboardPage() {
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '16px', marginBottom: '32px',
         }}>
-          {[
-            { label: 'Documentos', value: '0', icon: '📄', href: '/dashboard/documents' },
-            { label: 'Clientes', value: '0', icon: '👥', href: '/dashboard/clients' },
-            { label: 'Este mes', value: '$0', icon: '💰', href: '/dashboard/documents' },
-            { label: '⚙️ Configuración', bg: '#364061', href: '/dashboard/settings' },
-          ].map(stat => (
+          {stats.map(stat => (
             <div
               key={stat.label}
               onClick={() => router.push(stat.href)}
@@ -94,12 +120,31 @@ export default function DashboardPage() {
               }}
             >
               <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>{stat.icon}</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0e1b3d' }}>
+              <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0e1b3d', lineHeight: 1.2 }}>
                 {stat.value}
               </div>
-              <div style={{ fontSize: '.8rem', color: '#7888a8' }}>{stat.label}</div>
+              <div style={{ fontSize: '.8rem', color: '#7888a8', marginTop: 4 }}>{stat.label}</div>
             </div>
           ))}
+        </div>
+
+        {/* Config shortcut */}
+        <div
+          onClick={() => router.push('/dashboard/settings')}
+          style={{
+            background: '#364061', borderRadius: '14px',
+            padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)',
+            cursor: 'pointer', marginBottom: '32px', color: 'white',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '1rem', fontWeight: 700 }}>⚙️ Configuración del negocio</div>
+            <div style={{ fontSize: '.8rem', color: '#9aa6c4', marginTop: 4 }}>
+              Datos que aparecen en tus PDFs
+            </div>
+          </div>
+          <div style={{ fontSize: '1.2rem' }}>→</div>
         </div>
 
         {/* Quick actions */}

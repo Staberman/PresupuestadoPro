@@ -68,8 +68,8 @@ export default function ClientsPage() {
         setClients([{ id, ...data }, ...clients]);
       }
       setShowModal(false);
-    } catch (err: any) {
-      if (err.message === 'LIMIT_REACHED') {
+    } catch (err) {
+      if ((err as Error).message === 'LIMIT_REACHED') {
         setError('Alcanzaste el límite de 50 clientes. Actualizá a Pro.');
       } else {
         setError('Error al guardar. Intentá de nuevo.');

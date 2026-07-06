@@ -2,21 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin (server-side)
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId:    process.env.FIREBASE_PROJECT_ID,
-      clientEmail:  process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey:   process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
+let dbInstance: ReturnType<typeof getFirestore> | null = null;
 
-const db = getFirestore();
+function getAdminDb() {
+  if (dbInstance) return dbInstance;
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
+        projectId:    process.env.FIREBASE_PROJECT_ID,
+        clientEmail:  process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey:   process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+  }
+  dbInstance = getFirestore();
+  return dbInstance;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const db = getAdminDb();
     const body = await req.json();
 
     // MercadoPago sends different notification types

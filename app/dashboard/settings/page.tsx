@@ -166,7 +166,7 @@ export default function SettingsPage() {
                     if (!code || !user) return;
                     try {
                       const { db } = await import('@/lib/firebase');
-                      const { doc, getDoc, updateDoc, writeBatch, serverTimestamp } = await import('firebase/firestore');
+                      const { doc, getDoc, writeBatch, serverTimestamp } = await import('firebase/firestore');
                       const codeSnap = await getDoc(doc(db, 'activationCodes', code));
                       if (!codeSnap.exists()) { alert('Código incorrecto.'); return; }
                       const codeData = codeSnap.data();

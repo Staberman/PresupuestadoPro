@@ -25,10 +25,11 @@ export default function LoginPage() {
         await login(email, password);
       }
       router.push('/dashboard');
-    } catch (err: any) {
-      const msg = err.code === 'auth/invalid-credential'  ? 'Email o contraseña incorrectos.' :
-                  err.code === 'auth/email-already-in-use' ? 'Ese email ya está registrado.' :
-                  err.code === 'auth/weak-password'        ? 'La contraseña debe tener al menos 6 caracteres.' :
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      const msg = code === 'auth/invalid-credential'  ? 'Email o contraseña incorrectos.' :
+                  code === 'auth/email-already-in-use' ? 'Ese email ya está registrado.' :
+                  code === 'auth/weak-password'        ? 'La contraseña debe tener al menos 6 caracteres.' :
                   'Ocurrió un error. Intentá de nuevo.';
       setError(msg);
     } finally {

@@ -30,8 +30,8 @@ export interface Document {
   dateIssue:    string;
   dateExpiry:   string;
   fromDocId?:   string; // if this invoice came from a quote
-  createdAt?:   any;
-  updatedAt?:   any;
+  createdAt?:   unknown;
+  updatedAt?:   unknown;
 }
 
 export async function getDocuments(userId: string): Promise<Document[]> {
@@ -41,6 +41,12 @@ export async function getDocuments(userId: string): Promise<Document[]> {
   );
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Document));
+}
+
+export async function getDocument(userId: string, docId: string): Promise<Document | null> {
+  const snap = await getDoc(doc(db, 'users', userId, 'documents', docId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Document;
 }
 
 export async function createDocument(userId: string, data: Document, plan: string): Promise<string> {
