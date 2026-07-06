@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getDocuments, calcTotal, Document } from '@/lib/documents';
 import { getClients, Client } from '@/lib/clients';
 import { normalizeStatus } from '@/lib/status';
+import { getPayments, computeMonthlyIncome, Payment, MonthlyIncome } from '@/lib/payments';
 
 export default function DashboardPage() {
   const { user, profile, loading, isPro, logout } = useAuth();
@@ -13,6 +14,7 @@ export default function DashboardPage() {
 
   const [docs, setDocs]           = useState<Document[]>([]);
   const [clients, setClients]     = useState<Client[]>([]);
+  const [monthly, setMonthly]     = useState<MonthlyIncome[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
@@ -24,9 +26,18 @@ export default function DashboardPage() {
     Promise.all([
       getDocuments(user.uid),
       getClients(user.uid),
-    ]).then(([d, c]) => {
+    ]).then(async ([d, c]) => {
       setDocs(d);
       setClients(c);
+      // Cargar pagos solo de facturas
+      const paymentsByDoc: Record<string, Payment[]> = {};
+      const invoices = d.filter(doc => doc.type === 'factura' && doc.id);
+      await Promise.all(
+        invoices.map(async doc => {
+          paymentsByDoc[doc.id!] = await getPayments(user.uid, doc.id!);
+        })
+      );
+      setMonthly(computeMonthlyIncome(d, paymentsByDoc));
       setStatsLoading(false);
     });
   }, [user]);
@@ -129,6 +140,26 @@ export default function DashboardPage() {
           ))}
         </div>
 
+        {/* Panel de ingresos mensual */}
+        <div style={{
+          background: 'white', borderRadius: '14px',
+          padding: '24px', boxShadow: '0 1px 3px rgba(10,30,80,.08)',
+          marginBottom: '32px',
+        }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d', marginBottom: '16px' }}>
+            Ingresos por mes
+          </h2>
+          {statsLoading ? (
+            <div style={{ color: '#7888a8', fontSize: '.85rem' }}>Cargando...</div>
+          ) : monthly.length === 0 ? (
+            <div style={{ color: '#7888a8', fontSize: '.85rem', textAlign: 'center', padding: '24px' }}>
+              Todavía no emitiste facturas. Cuando lo hagas, acá vas a ver tu facturación y cobranza por mes.
+            </div>
+          ) : (
+            <IncomeChart data={monthly.slice(-6)} />
+          )}
+        </div>
+
         {/* Config shortcut */}
         <div
           onClick={() => router.push('/dashboard/settings')}
@@ -173,6 +204,57 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function IncomeChart({ data }: { data: MonthlyIncome[] }) {
+  const fmt = (n: number) => '$' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  const max = Math.max(1, ...data.map(d => Math.max(d.facturado, d.cobrado)));
+
+  return (
+    <div>
+      {/* Leyenda */}
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', fontSize: '.78rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '12px', height: '12px', background: '#0f2d6e', borderRadius: '3px' }} />
+          <span style={{ color: '#364061' }}>Facturado</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '12px', height: '12px', background: '#0a7c4b', borderRadius: '3px' }} />
+          <span style={{ color: '#364061' }}>Cobrado</span>
+        </div>
+      </div>
+
+      {/* Barras */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', height: '160px', paddingTop: '12px' }}>
+        {data.map(m => (
+          <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end', height: '120px', width: '100%', justifyContent: 'center' }}>
+              <div
+                title={`Facturado: ${fmt(m.facturado)}`}
+                style={{
+                  width: '14px',
+                  height: `${Math.max(2, (m.facturado / max) * 120)}px`,
+                  background: '#0f2d6e', borderRadius: '4px 4px 0 0',
+                  transition: 'height .3s',
+                }}
+              />
+              <div
+                title={`Cobrado: ${fmt(m.cobrado)}`}
+                style={{
+                  width: '14px',
+                  height: `${Math.max(2, (m.cobrado / max) * 120)}px`,
+                  background: '#0a7c4b', borderRadius: '4px 4px 0 0',
+                  transition: 'height .3s',
+                }}
+              />
+            </div>
+            <div style={{ fontSize: '.7rem', color: '#7888a8', textAlign: 'center' }}>{m.label}</div>
+            <div style={{ fontSize: '.68rem', color: '#0e1b3d', fontWeight: 600 }}>{fmt(m.facturado)}</div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { createDocument, updateDocument, DocItem, Document, UNITS } from '@/lib/documents';
 import { getServices, Service } from '@/lib/services';
 import { getClients, Client, FISCAL_CONDITIONS } from '@/lib/clients';
+import { suggestNextNumber } from '@/lib/payments';
 
 const emptyItem = (): DocItem => ({ desc: '', qty: 1, unit: 'hora', price: 0, disc: 0 });
 
@@ -47,6 +48,12 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
       getClients(user.uid).then(setClients).catch(() => {});
     }
   }, [user]);
+
+  // Numeración automática: sugerir próximo número al crear
+  useEffect(() => {
+    if (mode !== 'new' || !user) return;
+    suggestNextNumber(user.uid, type).then(setNum).catch(() => {});
+  }, [user, mode, type]);
 
   function applyClient(clientId: string) {
     const c = clients.find(x => x.id === clientId);
@@ -176,7 +183,7 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
             <div>
               <label style={lbl}>Número</label>
-              <input value={num} onChange={e => setNum(e.target.value)} placeholder="P-001 (opcional)" style={inp} />
+              <input value={num} onChange={e => setNum(e.target.value)} placeholder="Automático" style={inp} />
             </div>
             <div>
               <label style={lbl}>Fecha de emisión</label>

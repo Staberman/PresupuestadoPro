@@ -167,7 +167,10 @@ export default function DocumentsPage() {
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '.72rem', fontWeight: '700', color: '#7888a8', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                        <span
+                          onClick={() => router.push(`/dashboard/documents/${d.id}`)}
+                          style={{ fontSize: '.72rem', fontWeight: '700', color: '#7888a8', textTransform: 'uppercase', letterSpacing: '.06em', cursor: 'pointer' }}
+                        >
                           {d.type} #{d.num}
                         </span>
                         {statusChip(d.status)}
