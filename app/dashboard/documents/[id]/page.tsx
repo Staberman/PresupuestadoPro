@@ -6,7 +6,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { getDocument, calcTotal, Document } from '@/lib/documents';
 import { getPayments, addPayment, deletePayment, Payment, PAYMENT_METHODS, totalPaid } from '@/lib/payments';
 import { generatePDF, BizPdf } from '@/lib/pdf';
-import { statusMeta } from '@/lib/status';
+import { statusMeta, normalizeStatus } from '@/lib/status';
+import { publishQuoteIndexed } from '@/lib/publicQuote';
 
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading, isPro } = useAuth();
@@ -23,6 +24,9 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const [payMethod, setPayMethod] = useState('Transferencia');
   const [payNote, setPayNote]     = useState('');
   const [savingPay, setSavingPay] = useState(false);
+  const [publicUrl, setPublicUrl]   = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [copied, setCopied]         = useState(false);
 
   useEffect(() => { params.then(p => setDocId(p.id)); }, [params]);
 
@@ -73,6 +77,23 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     if (!user || !docId || !confirm('¿Eliminar este pago?')) return;
     await deletePayment(user.uid, docId, pid);
     setPayments(payments.filter(p => p.id !== pid));
+  }
+
+  async function handleShareLink() {
+    if (!user || !docId || !doc) return;
+    setPublishing(true);
+    try {
+      const token = await publishQuoteIndexed(user.uid, { ...doc, id: docId }, biz);
+      const url = `${window.location.origin}/p/${token}`;
+      setPublicUrl(url);
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      alert('No se pudo generar el link. Intentá de nuevo.');
+    } finally {
+      setPublishing(false);
+    }
   }
 
   const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2 });
@@ -132,6 +153,11 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           <button onClick={() => generatePDF(doc, biz, isPro)} style={{ background: '#1a56e8', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: 'pointer' }}>
             📄 Descargar PDF
           </button>
+          {doc.type === 'presupuesto' && (
+            <button onClick={handleShareLink} disabled={publishing} style={{ background: copied ? '#0a7c4b' : '#0e7490', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: publishing ? 'not-allowed' : 'pointer' }}>
+              {publishing ? 'Generando...' : copied ? '✓ Copiado' : '🔗 Copiar link público'}
+            </button>
+          )}
           <button onClick={() => router.push(`/dashboard/documents/${docId}/edit`)} style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', cursor: 'pointer' }}>
             ✏️ Editar
           </button>
@@ -148,6 +174,39 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             {s.label}
           </span>
         </div>
+
+        {/* Link público (solo presupuestos) */}
+        {doc.type === 'presupuesto' && (publicUrl || doc.signedBy) && (
+          <div style={{ background: 'white', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)', marginBottom: '16px', borderLeft: '3px solid #0e7490' }}>
+            {publicUrl && (
+              <>
+                <div style={{ fontSize: '.78rem', fontWeight: 700, color: '#0e7490', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>Link público del presupuesto</div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    readOnly value={publicUrl}
+                    onFocus={e => e.target.select()}
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #dde3f5', fontSize: '.8rem', color: '#364061', background: '#f5f7fc' }}
+                  />
+                  <button onClick={() => { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }} style={{ background: '#0e7490', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 14px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {copied ? '✓' : 'Copiar'}
+                  </button>
+                </div>
+                <div style={{ fontSize: '.75rem', color: '#7888a8', marginTop: 8 }}>
+                  Compartilo con tu cliente para que acepte o rechace online.
+                </div>
+              </>
+            )}
+            {doc.signedBy && (
+              <div style={{ marginTop: publicUrl ? 14 : 0, padding: '12px', background: normalizeStatus(doc.status) === 'aceptado' ? '#d1fae5' : '#fee2e2', borderRadius: '8px' }}>
+                <div style={{ fontWeight: 700, color: normalizeStatus(doc.status) === 'aceptado' ? '#0a7c4b' : '#c41c1c', fontSize: '.88rem' }}>
+                  {normalizeStatus(doc.status) === 'aceptado' ? '✓ Aceptado' : '✗ Rechazado'} por <strong>{doc.signedBy}</strong>
+                  {doc.signedAt && <span style={{ fontWeight: 400, color: '#7888a8' }}> · {doc.signedAt.split('T')[0]}</span>}
+                </div>
+                {doc.clientNote && <div style={{ fontSize: '.82rem', color: '#364061', marginTop: 6, fontStyle: 'italic' }}>«{doc.clientNote}»</div>}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Cliente */}
         <div style={card}>

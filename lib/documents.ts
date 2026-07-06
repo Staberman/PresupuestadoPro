@@ -56,6 +56,9 @@ export interface Document {
   dateIssue:              string;
   dateExpiry:             string;
   fromDocId?:             string; // if this invoice came from a quote
+  clientNote?:            string; // nota dejada por el cliente al aceptar/rechazar
+  signedBy?:              string; // nombre con el que firmó el cliente
+  signedAt?:              string; // fecha de aceptación/rechazo
   createdAt?:             unknown;
   updatedAt?:             unknown;
 }
