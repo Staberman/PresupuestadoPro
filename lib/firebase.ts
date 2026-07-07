@@ -8,7 +8,16 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+// Fallback para evitar crashes si env vars no se inlinearon en el build
+const cfgOk = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
+let app: ReturnType<typeof initializeApp> | undefined;
+try {
+  app = cfgOk
+    ? getApps()[0] ?? initializeApp(firebaseConfig as Record<string, string>)
+    : getApps()[0];
+} catch {
+  // Firebase no disponible
+}
 
-export const db   = getFirestore(app);
+export const db   = app ? getFirestore(app) : (null as unknown as ReturnType<typeof getFirestore>);
 export default app;

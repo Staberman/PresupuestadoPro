@@ -8,8 +8,12 @@ let _anonInit = false;
 function ensureAnon() {
   if (_anonInit) return;
   _anonInit = true;
-  const auth = getAuth();
-  signInAnonymously(auth).catch(() => {});
+  try {
+    const auth = getAuth();
+    signInAnonymously(auth).catch(() => {});
+  } catch {
+    // Firebase no configurado
+  }
 }
 
 export function useAuth() {
@@ -17,19 +21,29 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
     ensureAnon();
-    const auth = getAuth();
+    let auth;
+    try {
+      auth = getAuth();
+    } catch {
+      setLoading(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        // Ensure profile exists
-        const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (!snap.exists()) {
-          await setDoc(doc(db, 'users', firebaseUser.uid), {
+        // Firma / cuenta existe — evitar loop de escritura
+        const snap = await getDoc(doc(db!, 'users', firebaseUser.uid)).catch(() => null);
+        if (!snap?.exists()) {
+          await setDoc(doc(db!, 'users', firebaseUser.uid), {
             uid: firebaseUser.uid,
             createdAt: new Date().toISOString(),
             updatedAt: serverTimestamp(),
-          });
+          }).catch(() => {});
         }
       } else {
         setUser(null);
