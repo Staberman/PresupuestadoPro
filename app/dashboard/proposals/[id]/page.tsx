@@ -7,6 +7,7 @@ import {
   getProposal, updateProposal, Proposal, ProposalStatus, PROPOSAL_STATUS_META, PROPOSAL_STATUSES,
 } from '@/lib/proposals';
 import { ensureBuiltinTemplate } from '@/lib/templates';
+import { generateProposalPDF, BizPdf } from '@/lib/pdf';
 
 export default function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth();
@@ -19,6 +20,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
   const [sent, setSent]               = useState(false);
   const [copied, setCopied]           = useState(false);
   const [publicUrl, setPublicUrl]     = useState<string | null>(null);
+  const [biz, setBiz]                 = useState<BizPdf>({ name: '', address: '', phone: '', email: '', cuit: '', currency: 'ARS', footer: '' });
 
   useEffect(() => { params.then(p => setProposalId(p.id)); }, [params]);
 
@@ -34,6 +36,15 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
         setWhatsappPhone(p.whatsappPhone ?? '');
       });
       ensureBuiltinTemplate(user.uid).catch(() => {});
+      import('firebase/firestore').then(({ doc, getDoc }) => {
+        import('@/lib/firebase').then(({ db }) => {
+          getDoc(doc(db, 'users', user.uid)).then(snap => {
+            if (snap.exists() && snap.data().biz) {
+              setBiz(b => ({ ...b, ...(snap.data().biz as Partial<BizPdf>) }));
+            }
+          });
+        });
+      });
     }
   }, [user, proposalId]);
 
@@ -151,6 +162,9 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
           </button>
           <button onClick={handleShareLink} disabled={sending} style={{ background: copied ? '#0a7c4b' : '#364061', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: sending ? 'not-allowed' : 'pointer' }}>
             {copied ? '✓ Copiado' : '🔗 Copiar link'}
+          </button>
+          <button onClick={() => proposal && generateProposalPDF(proposal, biz, true)} style={{ background: '#0a7c4b', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: 'pointer' }}>
+            📄 PDF
           </button>
           <button onClick={() => router.push(`/dashboard/proposals/${proposalId}/edit`)} style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', cursor: 'pointer' }}>
             ✏️ Editar

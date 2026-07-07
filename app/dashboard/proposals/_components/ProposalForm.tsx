@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -35,6 +35,8 @@ export default function ProposalForm({ mode, proposalId }: Props) {
 
   const [templates, setTemplates]         = useState<Template[]>([]);
   const [clients, setClients]             = useState<Client[]>([]);
+  const [preview, setPreview]             = useState(false);
+  const dragIdx = useRef<number | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -122,6 +124,30 @@ export default function ProposalForm({ mode, proposalId }: Props) {
     setSections(next);
   }
 
+  function handleDragStart(e: React.DragEvent, idx: number) {
+    e.dataTransfer.effectAllowed = 'move';
+    dragIdx.current = idx;
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }
+
+  function handleDrop(e: React.DragEvent, idx: number) {
+    e.preventDefault();
+    if (dragIdx.current === null || dragIdx.current === idx) return;
+    const next = [...sections];
+    const [removed] = next.splice(dragIdx.current, 1);
+    next.splice(idx, 0, removed);
+    setSections(next);
+    dragIdx.current = null;
+  }
+
+  function handleDragEnd() {
+    dragIdx.current = null;
+  }
+
   async function handleSave() {
     if (!user) return;
     if (!title.trim()) { setError('Ingresá un título para la propuesta.'); return; }
@@ -148,6 +174,8 @@ export default function ProposalForm({ mode, proposalId }: Props) {
   }
 
   if (loading) return null;
+
+  const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2 });
 
   const inp = {
     width: '100%', padding: '10px 12px', borderRadius: '8px',
@@ -266,24 +294,74 @@ export default function ProposalForm({ mode, proposalId }: Props) {
         {/* Secciones */}
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d', margin: 0 }}>Secciones</h2>
+            <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d', margin: 0 }}>
+              {preview ? '👁️ Vista previa' : 'Secciones'}
+            </h2>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => addSection(false)} style={{ background: '#1a56e8', color: 'white', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
-                + Sección
+              <button onClick={() => setPreview(!preview)} style={{ background: preview ? '#0f2d6e' : '#f0f4ff', color: preview ? 'white' : '#364061', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
+                {preview ? '✏️ Editar' : '👁️ Vista previa'}
               </button>
-              <button onClick={() => addSection(true)} style={{ background: '#364061', color: 'white', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
-                + Sección informativa
-              </button>
+              {!preview && (<>
+                <button onClick={() => addSection(false)} style={{ background: '#1a56e8', color: 'white', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
+                  + Sección
+                </button>
+                <button onClick={() => addSection(true)} style={{ background: '#364061', color: 'white', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
+                  + Sección informativa
+                </button>
+              </>)}
             </div>
           </div>
 
-          {sections.map((s, i) => {
+          {preview ? (
+            /* Vista previa en vivo */
+            <div>
+              <div style={{ background: '#f0f4ff', borderRadius: '12px', padding: '20px', marginBottom: '16px', textAlign: 'center', border: '2px dashed #dde3f5' }}>
+                <div style={{ fontSize: '.78rem', fontWeight: 700, color: '#7888a8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>Monto total</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f2d6e' }}>${fmt(totalAmount || 0)}</div>
+              </div>
+              {sections.map(s => {
+                if (!s.isInfo) numberedCount++;
+                return (
+                  <div key={s.id} style={{ background: 'white', borderRadius: '14px', padding: '24px', boxShadow: '0 1px 3px rgba(10,30,80,.08)', marginBottom: '16px' }}>
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0e1b3d', marginBottom: '10px' }}>
+                      {s.isInfo ? '' : `${numberedCount}. `}{s.title || 'Sin título'}
+                    </h2>
+                    {s.description && (
+                      <div style={{ fontSize: '.88rem', color: '#364061', lineHeight: 1.6, marginBottom: s.bullets.filter(b => b.trim()).length ? '14px' : 0, whiteSpace: 'pre-wrap' }}>
+                        {s.description}
+                      </div>
+                    )}
+                    {s.bullets.filter(b => b.trim()).length > 0 && (
+                      <ul style={{ margin: 0, paddingLeft: '20px', color: '#364061', fontSize: '.85rem', lineHeight: 1.7 }}>
+                        {s.bullets.filter(b => b.trim()).map((b, bi) => <li key={bi}>{b}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+              {sections.length === 0 && (
+                <div style={{ textAlign: 'center', color: '#7888a8', padding: '32px', fontSize: '.85rem' }}>
+                  No hay secciones todavía. Cambiá a edición para agregar contenido.
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Editor de secciones */
+            <div>
+              {sections.map((s, i) => {
             if (!s.isInfo) numberedCount++;
             return (
               <div key={s.id} style={{
                 border: '1.5px solid #dde3f5', borderRadius: '12px', padding: '18px',
                 marginBottom: '14px', background: s.isInfo ? '#f9fafb' : 'white',
-              }}>
+                cursor: 'grab',
+              }}
+                draggable
+                onDragStart={e => handleDragStart(e, i)}
+                onDragOver={handleDragOver}
+                onDrop={e => handleDrop(e, i)}
+                onDragEnd={handleDragEnd}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{
@@ -338,12 +416,14 @@ export default function ProposalForm({ mode, proposalId }: Props) {
                 </div>
               </div>
             );
-          })}
-          {sections.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#7888a8', padding: '24px', fontSize: '.85rem' }}>
-              Agregá secciones con los botones de arriba.
+            })}
+              {sections.length === 0 && (
+                <div style={{ textAlign: 'center', color: '#7888a8', padding: '24px', fontSize: '.85rem' }}>
+                  Agregá secciones con los botones de arriba.
+                </div>
+              )}
             </div>
-          )}
+          )} {/* fin preview/edit */}
         </div>
 
         {/* Notas */}

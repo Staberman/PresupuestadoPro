@@ -128,6 +128,144 @@ export const MARKETING_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedAt'
   ],
 };
 
+// Plantilla pre-cargada: Branding & Identidad visual
+export const BRANDING_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedAt'> = {
+  name: 'Branding e identidad visual',
+  title: 'Branding e identidad visual',
+  builtin: true,
+  totalAmount: 1200000,
+  notes: '',
+  sections: [
+    {
+      id: 'b1',
+      title: 'Diseño de identidad visual',
+      description: 'Desarrollo de la identidad visual completa de la marca, incluyendo la creación de los elementos fundamentales que definirán la comunicación visual de la empresa.',
+      bullets: [
+        'Diseño de logotipo principal (versiones color, blanco/negro y simplificada).',
+        'Selección de paleta cromática con colores primarios, secundarios y de acento.',
+        'Definición de tipografía corporativa (títulos, cuerpo, digital).',
+        'Creación de papelería básica: tarjeta, hoja membretada, firma de email.',
+      ],
+      isInfo: false,
+    },
+    {
+      id: 'b2',
+      title: 'Manual de marca',
+      description: 'Documentación completa de la identidad visual para garantizar la correcta aplicación en todos los soportes.',
+      bullets: [
+        'Reglas de uso del logotipo, área de resguardo y usos incorrectos.',
+        'Especificaciones cromáticas (CMYK, RGB, HEX, Pantone).',
+        'Ejemplos de aplicación en soportes digitales y gráficos.',
+        'Guía de tono de comunicación verbal y escrita.',
+      ],
+      isInfo: false,
+    },
+    {
+      id: 'b3',
+      title: 'Aplicaciones digitales',
+      description: 'Implementación de la identidad visual en los principales canales digitales de la empresa.',
+      bullets: [
+        'Diseño de perfil de Instagram, LinkedIn y Facebook con la nueva identidad.',
+        'Creación de plantilla para presentaciones comerciales (Google Slides / PPT).',
+        'Diseño de placeholder para sitio web o landing page.',
+        'Set de 5 templates para stories o posts de lanzamiento.',
+      ],
+      isInfo: false,
+    },
+    {
+      id: 'b4',
+      title: 'Entregables',
+      description: 'Todos los archivos se entregan en formato editable y en alta resolución.',
+      bullets: [
+        'Archivos vectoriales editables (AI, EPS o SVG).',
+        'Archivos en PNG con fondo transparente y fondo blanco.',
+        'Archivos en PDF para impresión.',
+        'Carpeta organizada por categorías con nomenclatura clara.',
+      ],
+      isInfo: true,
+    },
+    {
+      id: 'b5',
+      title: 'Consideraciones',
+      description: 'El presente presupuesto incluye hasta dos rondas de revisión sobre las propuestas iniciales. Las modificaciones adicionales o la creación de nuevos elementos no contemplados se presupuestarán por separado.',
+      bullets: [],
+      isInfo: true,
+    },
+  ],
+};
+
+// Plantilla pre-cargada: Landing page avanzada con CRM
+export const LANDING_CRM_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedAt'> = {
+  name: 'Landing page avanzada con CRM',
+  title: 'Landing page avanzada con CRM',
+  builtin: true,
+  totalAmount: 2500000,
+  notes: '',
+  sections: [
+    {
+      id: 'l1',
+      title: 'Landing page de alto impacto',
+      description: 'Desarrollo de una landing page diseñada para maximizar conversiones, con una experiencia visual impactante y navegación fluida.',
+      bullets: [
+        'Diseño UI/UX exclusivo con animaciones de entrada y microinteracciones.',
+        'Estructura modular de hasta 7 secciones (hero, servicios, beneficios, casos, FAQ, testimonios, formulario).',
+        'Animaciones y transiciones con GSAP o Framer Motion.',
+        'Optimización Core Web Vitals (LCP, FID, CLS).',
+        'Responsive design adaptado a mobile, tablet y desktop.',
+      ],
+      isInfo: false,
+    },
+    {
+      id: 'l2',
+      title: 'Integración con CRM',
+      description: 'Conexión completa con la plataforma CRM para automatizar la captura y gestión de leads.',
+      bullets: [
+        'Integración del formulario de contacto con el CRM vía API o webhook.',
+        'Sincronización automática de leads con etiquetado por origen y campaña.',
+        'Automatización de email de bienvenida y seguimiento.',
+        'Panel de leads en el CRM con historial deinteracciones.',
+        'Configuración de pipeline comercial con etapas personalizadas.',
+      ],
+      isInfo: false,
+    },
+    {
+      id: 'l3',
+      title: 'SEO técnico y analítica',
+      description: 'Configuración completa de tracking y optimización para motores de búsqueda.',
+      bullets: [
+        'Configuración de Google Analytics 4 y Google Tag Manager.',
+        'Implementación de Meta Pixel y eventos de conversión.',
+        'Estructura SEO on-page: meta tags, Open Graph, schema markup.',
+        'Sitemap XML y robots.txt optimizados.',
+        'Configuración de Google Search Console.',
+      ],
+      isInfo: false,
+    },
+    {
+      id: 'l4',
+      title: 'Hosting y dominio',
+      description: 'Se incluye la configuración inicial del entorno de producción.',
+      bullets: [
+        'Configuración de dominio personalizado y SSL.',
+        'Hosting optimizado con CDN (Vercel, Netlify o similar).',
+        'Formulario de contacto con protección anti-spam.',
+        'Mantenimiento técnico por 30 días posteriores al lanzamiento.',
+      ],
+      isInfo: false,
+    },
+    {
+      id: 'l5',
+      title: 'Consideraciones',
+      description: 'El presupuesto incluye hasta 3 rondas de revisión sobre el diseño aprobado. El contenido (textos, imágenes, videos) debe ser provisto por el cliente. Las integraciones adicionales o funcionalidades extra se presupuestarán por separado.',
+      bullets: [],
+      isInfo: true,
+    },
+  ],
+};
+
+// Lista de todas las plantillas built-in para precarga
+const BUILTIN_TEMPLATES = [MARKETING_TEMPLATE, BRANDING_TEMPLATE, LANDING_CRM_TEMPLATE];
+
 export async function getTemplates(userId: string): Promise<Template[]> {
   const snap = await getDocs(collection(db, 'users', userId, 'templates'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Template));
@@ -139,19 +277,21 @@ export async function getTemplate(userId: string, templateId: string): Promise<T
   return { id: snap.id, ...snap.data() } as Template;
 }
 
-// Guarda la plantilla pre-cargada de marketing si no existe todavía
+// Guarda todas las plantillas built-in que falten
 export async function ensureBuiltinTemplate(userId: string): Promise<void> {
   const existing = await getTemplates(userId);
-  const hasMarketing = existing.some(t => t.builtin && t.name === MARKETING_TEMPLATE.name);
-  if (!hasMarketing) {
-    await setDoc(
-      doc(collection(db, 'users', userId, 'templates')),
-      {
-        ...MARKETING_TEMPLATE,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }
-    );
+  for (const tpl of BUILTIN_TEMPLATES) {
+    const has = existing.some(t => t.builtin && t.name === tpl.name);
+    if (!has) {
+      await setDoc(
+        doc(collection(db, 'users', userId, 'templates')),
+        {
+          ...tpl,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }
+      );
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import {
   getProposals, deleteProposal, updateProposal,
   Proposal, ProposalStatus, PROPOSAL_STATUS_META, PROPOSAL_STATUSES,
 } from '@/lib/proposals';
+import { generateProposalPDF, BizPdf } from '@/lib/pdf';
 
 export default function ProposalsPage() {
   const { user, loading } = useAuth();
@@ -16,6 +17,7 @@ export default function ProposalsPage() {
   const [dataLoading, setDataLoading]   = useState(true);
   const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | ProposalStatus>('all');
+  const [biz, setBiz]                   = useState<BizPdf>({ name: '', address: '', phone: '', email: '', cuit: '', currency: 'ARS', footer: '' });
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -26,6 +28,15 @@ export default function ProposalsPage() {
     getProposals(user.uid).then(data => {
       setProposals(data);
       setDataLoading(false);
+    });
+    import('firebase/firestore').then(({ doc, getDoc }) => {
+      import('@/lib/firebase').then(({ db }) => {
+        getDoc(doc(db, 'users', user.uid)).then(snap => {
+          if (snap.exists() && snap.data().biz) {
+            setBiz(b => ({ ...b, ...(snap.data().biz as Partial<BizPdf>) }));
+          }
+        });
+      });
     });
   }, [user]);
 
@@ -155,6 +166,9 @@ export default function ProposalsPage() {
                         </button>
                         <button onClick={() => router.push(`/dashboard/proposals/${p.id}/edit`)} style={{ background: '#f0f4ff', color: '#364061', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
                           Editar
+                        </button>
+                        <button onClick={() => generateProposalPDF(p, biz, true)} style={{ background: '#d1fae5', color: '#0a7c4b', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
+                          PDF
                         </button>
                         <button onClick={() => handleDelete(p.id!)} style={{ background: '#fee2e2', color: '#c41c1c', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
                           Eliminar

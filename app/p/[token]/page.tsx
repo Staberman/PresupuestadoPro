@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { getPublicQuote, respondPublicQuote, PublicQuote } from '@/lib/publicQuote';
 import { getPublicProposal, respondPublicProposal, PublicProposal } from '@/lib/publicProposal';
 import { calcTotal, unitLabel } from '@/lib/documents';
-import { generatePDF } from '@/lib/pdf';
+import { generatePDF, generateProposalPDF } from '@/lib/pdf';
 
 type Mode = 'quote' | 'proposal';
 
@@ -195,8 +195,11 @@ export default function PublicPage() {
         <div style={{ background: '#0f2d6e', padding: '24px' }}>
           <div style={{ maxWidth: '720px', margin: '0 auto' }}>
             <h1 style={{ color: 'white', fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>{p.title || 'Propuesta'}</h1>
-            <div style={{ color: '#93adf5', fontSize: '.82rem', marginTop: 6 }}>
+            <div style={{ color: '#93adf5', fontSize: '.82rem', marginTop: 6, display: 'flex', alignItems: 'center', gap: '12px' }}>
               Fecha de emisión: {p.dateIssue}
+              <button onClick={() => generateProposalPDF(p, { name: p.title || 'Propuesta', address: '', phone: '', email: '', cuit: '', currency: 'ARS', footer: '' }, true)} style={{ background: '#0a7c4b', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
+                📄 PDF
+              </button>
             </div>
           </div>
         </div>
