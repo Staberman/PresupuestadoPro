@@ -103,21 +103,14 @@ export async function deleteDocument(docId: string): Promise<void> {
   if (error) mapError(error, 'deleteDocument');
 }
 
-export async function convertToInvoice(quoteId: string, nextNum: string): Promise<string> {
-  const quote = await getDocument(quoteId);
-  if (!quote) throw new Error('Quote not found');
-
-  const invoiceId = await createDocument({
-    ...quote,
-    type:       'factura',
-    num:        nextNum,
-    status:     'enviado',
-    fromDocId:  quoteId,
+export async function convertToInvoice(docId: string, nextNum: string): Promise<void> {
+  const doc = await getDocument(docId);
+  if (!doc) throw new Error('Document not found');
+  await updateDocument(docId, {
+    type: 'factura',
+    num: nextNum,
+    status: 'enviado',
   });
-
-  await updateDocument(quoteId, { status: 'facturado' });
-
-  return invoiceId;
 }
 
 export function calcSubtotal(doc: Document): number {

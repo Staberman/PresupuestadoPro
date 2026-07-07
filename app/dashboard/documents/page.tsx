@@ -7,6 +7,7 @@ import { getDocuments, deleteDocument, convertToInvoice, updateDocument, calcTot
 import { generatePDF, BizPdf } from '@/lib/pdf';
 import { statusMeta, normalizeStatus, shouldExpire, STATUS_META } from '@/lib/status';
 import { getBizConfig } from '@/lib/biz';
+import { suggestNextNumber } from '@/lib/payments';
 
 export default function DocumentsPage() {
   const { user, loading } = useAuth();
@@ -63,11 +64,11 @@ export default function DocumentsPage() {
 
   async function handleConvert(id: string) {
     if (!user) return;
-    const nextNum = `F-${Date.now()}`;
+    const nextNum = await suggestNextNumber('factura');
     await convertToInvoice(id, nextNum);
     const updated = await getDocuments();
     setDocs(updated);
-    alert('✓ Factura creada correctamente');
+    alert('✓ Convertido a factura');
   }
 
   async function handleStatusChange(id: string, status: DocStatus) {
