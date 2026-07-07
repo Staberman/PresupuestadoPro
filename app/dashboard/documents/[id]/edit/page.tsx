@@ -19,7 +19,7 @@ export default function EditDocumentPage({ params }: { params: Promise<{ id: str
 
   useEffect(() => {
     if (user && docId) {
-      getDocument(user.uid, docId).then(d => {
+      getDocument(docId).then(d => {
         if (!d) setNotFound(true);
         else setDoc(d);
       });

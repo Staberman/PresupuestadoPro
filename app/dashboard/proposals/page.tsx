@@ -8,6 +8,7 @@ import {
   Proposal, ProposalStatus, PROPOSAL_STATUS_META, PROPOSAL_STATUSES,
 } from '@/lib/proposals';
 import { generateProposalPDF, BizPdf } from '@/lib/pdf';
+import { getBizConfig } from '@/lib/biz';
 
 export default function ProposalsPage() {
   const { user, loading } = useAuth();
@@ -21,31 +22,25 @@ export default function ProposalsPage() {
 
   useEffect(() => {
     if (!user) return;
-    getProposals(user.uid).then(data => {
+    getProposals().then(data => {
       setProposals(data);
       setDataLoading(false);
     });
-    import('firebase/firestore').then(({ doc, getDoc }) => {
-      import('@/lib/firebase').then(({ db }) => {
-        getDoc(doc(db, 'users', user.uid)).then(snap => {
-          if (snap.exists() && snap.data().biz) {
-            setBiz(b => ({ ...b, ...(snap.data().biz as Partial<BizPdf>) }));
-          }
-        });
-      });
+    getBizConfig().then(cfg => {
+      setBiz(b => ({ ...b, ...cfg }));
     });
   }, [user]);
 
   async function handleDelete(id: string) {
     if (!user || !confirm('¿Eliminar esta propuesta?')) return;
-    await deleteProposal(user.uid, id);
+    await deleteProposal(id);
     setProposals(proposals.filter(p => p.id !== id));
   }
 
   async function handleStatusChange(id: string, status: ProposalStatus) {
     if (!user) return;
     setProposals(proposals.map(p => p.id === id ? { ...p, status } : p));
-    await updateProposal(user.uid, id, { status });
+    await updateProposal(id, { status });
   }
 
   const filtered = proposals.filter(p => {

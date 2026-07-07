@@ -8,6 +8,7 @@ import { getPayments, addPayment, deletePayment, Payment, PAYMENT_METHODS, total
 import { generatePDF, BizPdf } from '@/lib/pdf';
 import { statusMeta, normalizeStatus } from '@/lib/status';
 import { publishQuoteIndexed } from '@/lib/publicQuote';
+import { getBizConfig } from '@/lib/biz';
 
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth();
@@ -37,12 +38,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     if (user && docId) {
-      getDocument(user.uid, docId).then(d => {
+      getDocument(docId).then(d => {
         if (!d) { setNotFound(true); return; }
         setDoc(d);
         setSendTo(d.clientEmail ?? '');
         if (d.type === 'factura') {
-          getPayments(user.uid, docId).then(setPayments);
+          getPayments(docId).then(setPayments);
         }
       });
     }
@@ -50,14 +51,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     if (!user) return;
-    import('firebase/firestore').then(({ doc, getDoc }) => {
-      import('@/lib/firebase').then(({ db }) => {
-        getDoc(doc(db, 'users', user.uid)).then(snap => {
-          if (snap.exists() && snap.data().biz) {
-            setBiz(b => ({ ...b, ...(snap.data().biz as Partial<BizPdf>) }));
-          }
-        });
-      });
+    getBizConfig().then(cfg => {
+      setBiz(b => ({ ...b, ...cfg }));
     });
   }, [user]);
 
@@ -66,7 +61,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     if (payAmount <= 0) return;
     setSavingPay(true);
     try {
-      const id = await addPayment(user.uid, docId, { amount: payAmount, date: payDate, method: payMethod, note: payNote });
+      const id = await addPayment(docId, { amount: payAmount, date: payDate, method: payMethod, note: payNote });
       setPayments([{ id, amount: payAmount, date: payDate, method: payMethod, note: payNote }, ...payments]);
       setShowPayModal(false);
       setPayAmount(0); setPayNote('');
@@ -77,7 +72,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   async function handleDeletePayment(pid: string) {
     if (!user || !docId || !confirm('¿Eliminar este pago?')) return;
-    await deletePayment(user.uid, docId, pid);
+    await deletePayment(docId, pid);
     setPayments(payments.filter(p => p.id !== pid));
   }
 
@@ -85,7 +80,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     if (!user || !docId || !doc) return;
     setPublishing(true);
     try {
-      const token = await publishQuoteIndexed(user.uid, { ...doc, id: docId }, biz);
+      const token = await publishQuoteIndexed({ ...doc, id: docId }, biz);
       const url = `${window.location.origin}/p/${token}`;
       setPublicUrl(url);
       await navigator.clipboard.writeText(url);
@@ -104,11 +99,11 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     setSending(true);
     try {
       // 1) Publicar el link público
-      const token = await publishQuoteIndexed(user.uid, { ...doc, id: docId }, biz);
+      const token = await publishQuoteIndexed({ ...doc, id: docId }, biz);
       const url = `${window.location.origin}/p/${token}`;
       setPublicUrl(url);
       // 2) Marcar como enviado
-      await updateDocument(user.uid, docId, { status: 'enviado' });
+      await updateDocument(docId, { status: 'enviado' });
       setDoc({ ...doc, status: 'enviado' });
       // 3) Enviar email
       const res = await fetch('/api/send-quote', {

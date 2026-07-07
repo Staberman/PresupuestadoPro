@@ -26,7 +26,7 @@ export default function ServicesPage() {
 
   useEffect(() => {
     if (user) {
-      getServices(user.uid).then(data => {
+      getServices().then(data => {
         setServices(data);
         setServicesLoading(false);
       });
@@ -55,10 +55,10 @@ export default function ServicesPage() {
     try {
       const data: Service = { name, desc, unit, price, category, active: true };
       if (editingId) {
-        await updateService(user.uid, editingId, data);
+        await updateService(editingId, data);
         setServices(services.map(s => s.id === editingId ? { ...s, ...data } : s));
       } else {
-        const id = await createService(user.uid, data);
+        const id = await createService(data);
         setServices([{ id, ...data }, ...services]);
       }
       setShowModal(false);
@@ -71,14 +71,14 @@ export default function ServicesPage() {
 
   async function handleDelete(id: string) {
     if (!user || !confirm('¿Eliminar este servicio?')) return;
-    await deleteService(user.uid, id);
+    await deleteService(id);
     setServices(services.filter(s => s.id !== id));
   }
 
   async function handleToggle(s: Service) {
     if (!user || !s.id) return;
     const next = !s.active;
-    await updateService(user.uid, s.id, { active: next });
+    await updateService(s.id, { active: next });
     setServices(services.map(x => x.id === s.id ? { ...x, active: next } : x));
   }
 

@@ -100,7 +100,7 @@ export default function PublicPage() {
 
   // ====== MODO: PRESUPUESTO (existente) ======
   if (mode === 'quote' && quote) {
-    const d = quote.doc;
+    const d = quote.document;
     const total = calcTotal(d);
     return (
       <div style={{ minHeight: '100vh', background: '#f5f7fc', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>

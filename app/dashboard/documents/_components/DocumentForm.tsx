@@ -44,15 +44,15 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
 
   useEffect(() => {
     if (user) {
-      getServices(user.uid).then(setServices).catch(() => {});
-      getClients(user.uid).then(setClients).catch(() => {});
+      getServices().then(setServices).catch(() => {});
+      getClients().then(setClients).catch(() => {});
     }
   }, [user]);
 
   // Numeración automática: sugerir próximo número al crear
   useEffect(() => {
     if (mode !== 'new' || !user) return;
-    suggestNextNumber(user.uid, type).then(setNum).catch(() => {});
+    suggestNextNumber(type).then(setNum).catch(() => {});
   }, [user, mode, type]);
 
   function applyClient(clientId: string) {
@@ -117,9 +117,9 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
         dateIssue, dateExpiry,
       };
       if (mode === 'edit' && docId) {
-        await updateDocument(user.uid, docId, docData);
+        await updateDocument(docId, docData);
       } else {
-        await createDocument(user.uid, docData);
+        await createDocument(docData);
       }
       router.push('/dashboard/documents');
     } catch {

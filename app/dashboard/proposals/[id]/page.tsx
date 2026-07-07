@@ -6,8 +6,9 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   getProposal, updateProposal, Proposal, ProposalStatus, PROPOSAL_STATUS_META, PROPOSAL_STATUSES,
 } from '@/lib/proposals';
-import { ensureBuiltinTemplate } from '@/lib/templates';
+import { ensureBuiltinTemplates } from '@/lib/templates';
 import { generateProposalPDF, BizPdf } from '@/lib/pdf';
+import { getBizConfig } from '@/lib/biz';
 
 export default function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, loading } = useAuth();
@@ -26,20 +27,14 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     if (user && proposalId) {
-      getProposal(user.uid, proposalId).then(p => {
+      getProposal(proposalId).then(p => {
         if (!p) { setNotFound(true); return; }
         setProposal(p);
         setWhatsappPhone(p.whatsappPhone ?? '');
       });
-      ensureBuiltinTemplate(user.uid).catch(() => {});
-      import('firebase/firestore').then(({ doc, getDoc }) => {
-        import('@/lib/firebase').then(({ db }) => {
-          getDoc(doc(db, 'users', user.uid)).then(snap => {
-            if (snap.exists() && snap.data().biz) {
-              setBiz(b => ({ ...b, ...(snap.data().biz as Partial<BizPdf>) }));
-            }
-          });
-        });
+      ensureBuiltinTemplates().catch(() => {});
+      getBizConfig().then(cfg => {
+        setBiz(b => ({ ...b, ...cfg }));
       });
     }
   }, [user, proposalId]);
@@ -53,7 +48,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
       update.postergarUntil = d.toISOString().split('T')[0];
     }
     setProposal({ ...proposal, ...update });
-    await updateProposal(user.uid, proposalId, update);
+    await updateProposal(proposalId, update);
   }
 
   async function handleShareLink() {
@@ -61,7 +56,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
     setSending(true);
     try {
       const { publishProposal } = await import('@/lib/publicProposal');
-      const token = await publishProposal(user.uid, { ...proposal, id: proposalId }, whatsappPhone);
+      const token = await publishProposal({ ...proposal, id: proposalId }, whatsappPhone);
       const url = `${window.location.origin}/p/${token}`;
       setPublicUrl(url);
       await navigator.clipboard.writeText(url);
@@ -69,7 +64,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
       setTimeout(() => setCopied(false), 2500);
       // Marcar como enviado
       if (proposal.status === 'borrador') {
-        await updateProposal(user.uid, proposalId, { status: 'enviado' });
+        await updateProposal(proposalId, { status: 'enviado' });
         setProposal({ ...proposal, status: 'enviado' });
       }
     } catch {
@@ -85,12 +80,12 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
     setSending(true);
     try {
       const { publishProposal } = await import('@/lib/publicProposal');
-      const token = await publishProposal(user.uid, { ...proposal, id: proposalId }, whatsappPhone);
+      const token = await publishProposal({ ...proposal, id: proposalId }, whatsappPhone);
       const url = `${window.location.origin}/p/${token}`;
       setPublicUrl(url);
       // Marcar como enviado
       if (proposal.status === 'borrador') {
-        await updateProposal(user.uid, proposalId, { status: 'enviado' });
+        await updateProposal(proposalId, { status: 'enviado' });
         setProposal({ ...proposal, status: 'enviado' });
       }
       const res = await fetch('/api/send-proposal', {

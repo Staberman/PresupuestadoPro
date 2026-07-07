@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getDocuments, deleteDocument, convertToInvoice, updateDocument, calcTotal, Document, DocStatus } from '@/lib/documents';
 import { generatePDF, BizPdf } from '@/lib/pdf';
 import { statusMeta, normalizeStatus, shouldExpire, STATUS_META } from '@/lib/status';
+import { getBizConfig } from '@/lib/biz';
 
 export default function DocumentsPage() {
   const { user, loading } = useAuth();
@@ -19,7 +20,7 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     if (user) {
-      getDocuments(user.uid).then(async (data) => {
+      getDocuments().then(async (data) => {
         // Auto-vencer presupuestos cuya fecha de vencimiento ya pasó
         const toExpire = data.filter(d =>
           d.type === 'presupuesto' &&
@@ -28,7 +29,7 @@ export default function DocumentsPage() {
         );
         if (toExpire.length) {
           await Promise.all(
-            toExpire.map(d => updateDocument(user.uid, d.id!, { status: 'vencido' }))
+            toExpire.map(d => updateDocument(d.id!, { status: 'vencido' }))
           );
           data = data.map(d =>
             toExpire.find(t => t.id === d.id) ? { ...d, status: 'vencido' as DocStatus } : d
@@ -42,14 +43,8 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     if (!user) return;
-    import('firebase/firestore').then(({ doc, getDoc }) => {
-      import('@/lib/firebase').then(({ db }) => {
-        getDoc(doc(db, 'users', user.uid)).then(snap => {
-          if (snap.exists() && snap.data().biz) {
-            setBiz(b => ({ ...b, ...(snap.data().biz as Partial<BizPdf>) }));
-          }
-        });
-      });
+    getBizConfig().then(cfg => {
+      setBiz(b => ({ ...b, ...cfg }));
     });
   }, [user]);
 
@@ -62,15 +57,15 @@ export default function DocumentsPage() {
 
   async function handleDelete(id: string) {
     if (!user || !confirm('¿Eliminar este documento?')) return;
-    await deleteDocument(user.uid, id);
+    await deleteDocument(id);
     setDocs(docs.filter(d => d.id !== id));
   }
 
   async function handleConvert(id: string) {
     if (!user) return;
     const nextNum = `F-${Date.now()}`;
-    await convertToInvoice(user.uid, id, nextNum);
-    const updated = await getDocuments(user.uid);
+    await convertToInvoice(id, nextNum);
+    const updated = await getDocuments();
     setDocs(updated);
     alert('✓ Factura creada correctamente');
   }
@@ -78,7 +73,7 @@ export default function DocumentsPage() {
   async function handleStatusChange(id: string, status: DocStatus) {
     if (!user) return;
     setDocs(docs.map(d => d.id === id ? { ...d, status } : d));
-    await updateDocument(user.uid, id, { status });
+    await updateDocument(id, { status });
   }
 
   function statusChip(status: string) {

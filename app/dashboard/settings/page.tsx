@@ -2,26 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
-export interface BizConfig {
-  name:     string;
-  address:  string;
-  phone:    string;
-  email:    string;
-  cuit:     string;
-  currency: string;
-  footer:   string;
-}
+import { getBizConfig, saveBizConfig, type BizConfig } from '@/lib/biz';
 
 const defaultBiz: BizConfig = {
   name: '', address: '', phone: '', email: '', cuit: '', currency: 'ARS', footer: '',
 };
 
 export default function SettingsPage() {
-  const { user, loading } = useAuth();
   const router = useRouter();
 
   const [biz, setBiz]     = useState<BizConfig>(defaultBiz);
@@ -29,21 +16,12 @@ export default function SettingsPage() {
   const [saved, setSaved]   = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    getDoc(doc(db, 'users', user.uid)).then(snap => {
-      if (snap.exists() && snap.data().biz) {
-        setBiz({ ...defaultBiz, ...snap.data().biz });
-      }
-    });
-  }, [user]);
+    getBizConfig().then(setBiz);
+  }, []);
 
   async function handleSave() {
-    if (!user) return;
     setSaving(true);
-    await setDoc(doc(db, 'users', user.uid), {
-      biz,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+    await saveBizConfig(biz);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -61,8 +39,6 @@ export default function SettingsPage() {
     background: 'white', borderRadius: '14px',
     padding: '24px', boxShadow: '0 1px 3px rgba(10,30,80,.08)', marginBottom: '16px',
   };
-
-  if (loading) return null;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f7fc', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>

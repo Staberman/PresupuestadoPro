@@ -1,22 +1,19 @@
-import {
-  collection, doc, setDoc, getDocs, getDoc, deleteDoc, serverTimestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
+import { mapError, mapRows, mapRow, toDb } from '@/lib/supabase-helpers';
 import type { ProposalSection } from '@/lib/proposals';
 
 export interface Template {
   id?:          string;
   name:         string;
-  title:        string;       // título default de la propuesta
+  title:        string;
   sections:     ProposalSection[];
   totalAmount:  number;
   notes:        string;
-  builtin:      boolean;      // plantilla pre-cargada del sistema
-  createdAt?:   unknown;
-  updatedAt?:   unknown;
+  builtin:      boolean;
+  createdAt?:   string;
+  updatedAt?:   string;
 }
 
-// Plantilla pre-cargada: Campaña completa de marketing
 export const MARKETING_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedAt'> = {
   name: 'Campaña completa de marketing',
   title: 'Campaña completa de marketing',
@@ -128,7 +125,6 @@ export const MARKETING_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedAt'
   ],
 };
 
-// Plantilla pre-cargada: Branding & Identidad visual
 export const BRANDING_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedAt'> = {
   name: 'Branding e identidad visual',
   title: 'Branding e identidad visual',
@@ -194,7 +190,6 @@ export const BRANDING_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedAt'>
   ],
 };
 
-// Plantilla pre-cargada: Landing page avanzada con CRM
 export const LANDING_CRM_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedAt'> = {
   name: 'Landing page avanzada con CRM',
   title: 'Landing page avanzada con CRM',
@@ -263,48 +258,62 @@ export const LANDING_CRM_TEMPLATE: Omit<Template, 'id' | 'createdAt' | 'updatedA
   ],
 };
 
-// Lista de todas las plantillas built-in para precarga
 const BUILTIN_TEMPLATES = [MARKETING_TEMPLATE, BRANDING_TEMPLATE, LANDING_CRM_TEMPLATE];
 
-export async function getTemplates(userId: string): Promise<Template[]> {
-  const snap = await getDocs(collection(db, 'users', userId, 'templates'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Template));
+export async function getTemplates(): Promise<Template[]> {
+  const { data, error } = await supabase
+    .from('templates')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) mapError(error, 'getTemplates');
+  return mapRows<Template>(data as Record<string, unknown>[]);
 }
 
-export async function getTemplate(userId: string, templateId: string): Promise<Template | null> {
-  const snap = await getDoc(doc(db, 'users', userId, 'templates', templateId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Template;
+export async function getTemplate(templateId: string): Promise<Template | null> {
+  const { data, error } = await supabase
+    .from('templates')
+    .select('*')
+    .eq('id', templateId)
+    .maybeSingle();
+  if (error) mapError(error, 'getTemplate');
+  if (!data) return null;
+  return mapRow<Template>(data as Record<string, unknown>);
 }
 
-// Guarda todas las plantillas built-in que falten
-export async function ensureBuiltinTemplate(userId: string): Promise<void> {
-  const existing = await getTemplates(userId);
+export async function ensureBuiltinTemplates(): Promise<void> {
+  const { data: existing, error: listErr } = await supabase
+    .from('templates')
+    .select('name, builtin');
+  if (listErr) mapError(listErr, 'ensureBuiltinTemplates');
+
+  const existingNames = new Set(
+    (existing || []).filter((t: any) => t.builtin).map((t: any) => t.name)
+  );
+
   for (const tpl of BUILTIN_TEMPLATES) {
-    const has = existing.some(t => t.builtin && t.name === tpl.name);
-    if (!has) {
-      await setDoc(
-        doc(collection(db, 'users', userId, 'templates')),
-        {
-          ...tpl,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }
-      );
+    if (!existingNames.has(tpl.name)) {
+      const { error } = await supabase
+        .from('templates')
+        .insert(toDb({ ...tpl } as unknown as Record<string, unknown>));
+      if (error) mapError(error, 'ensureBuiltinTemplates.insert');
     }
   }
 }
 
-export async function saveTemplate(userId: string, data: Omit<Template, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
-  const ref = doc(collection(db, 'users', userId, 'templates'));
-  await setDoc(ref, {
-    ...data,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return ref.id;
+export async function saveTemplate(data: Omit<Template, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  const { data: row, error } = await supabase
+    .from('templates')
+    .insert(toDb(data as unknown as Record<string, unknown>))
+    .select('id')
+    .single();
+  if (error) mapError(error, 'saveTemplate');
+  return row!.id;
 }
 
-export async function deleteTemplate(userId: string, templateId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', userId, 'templates', templateId));
+export async function deleteTemplate(templateId: string): Promise<void> {
+  const { error } = await supabase
+    .from('templates')
+    .delete()
+    .eq('id', templateId);
+  if (error) mapError(error, 'deleteTemplate');
 }

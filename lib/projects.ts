@@ -1,10 +1,7 @@
-import {
-  collection, doc, addDoc, updateDoc, deleteDoc,
-  getDocs, getDoc, query, orderBy, serverTimestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { calcTotal, Document } from '@/lib/documents';
-import { totalPaid, Payment, getPayments } from '@/lib/payments';
+import { supabase } from '@/lib/supabase';
+import { mapError, mapRows, mapRow, toDb } from '@/lib/supabase-helpers';
+import { calcTotal, type Document } from '@/lib/documents';
+import { totalPaid, type Payment, getPayments } from '@/lib/payments';
 
 export type ProjectStatus = 'borrador' | 'en_curso' | 'completado' | 'pausado' | 'cancelado';
 
@@ -31,46 +28,56 @@ export interface Project {
   budget:       number;
   notes:        string;
   docIds:       string[];
-  createdAt?:   unknown;
-  updatedAt?:   unknown;
+  createdAt?:   string;
+  updatedAt?:   string;
 }
 
-export async function getProjects(userId: string): Promise<Project[]> {
-  const q = query(
-    collection(db, 'users', userId, 'projects'),
-    orderBy('createdAt', 'desc')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Project));
+export async function getProjects(): Promise<Project[]> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) mapError(error, 'getProjects');
+  return mapRows<Project>(data as Record<string, unknown>[]);
 }
 
-export async function getProject(userId: string, projectId: string): Promise<Project | null> {
-  const snap = await getDoc(doc(db, 'users', userId, 'projects', projectId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Project;
+export async function getProject(projectId: string): Promise<Project | null> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', projectId)
+    .maybeSingle();
+  if (error) mapError(error, 'getProject');
+  if (!data) return null;
+  return mapRow<Project>(data as Record<string, unknown>);
 }
 
-export async function createProject(userId: string, data: Project): Promise<string> {
-  const ref = await addDoc(collection(db, 'users', userId, 'projects'), {
-    ...data,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return ref.id;
+export async function createProject(data: Project): Promise<string> {
+  const { data: row, error } = await supabase
+    .from('projects')
+    .insert(toDb(data as unknown as Record<string, unknown>))
+    .select('id')
+    .single();
+  if (error) mapError(error, 'createProject');
+  return row!.id;
 }
 
-export async function updateProject(userId: string, projectId: string, data: Partial<Project>): Promise<void> {
-  await updateDoc(doc(db, 'users', userId, 'projects', projectId), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+export async function updateProject(projectId: string, data: Partial<Project>): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .update(toDb(data as unknown as Record<string, unknown>))
+    .eq('id', projectId);
+  if (error) mapError(error, 'updateProject');
 }
 
-export async function deleteProject(userId: string, projectId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', userId, 'projects', projectId));
+export async function deleteProject(projectId: string): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId);
+  if (error) mapError(error, 'deleteProject');
 }
 
-// Calcula el monto facturado y cobrado de un proyecto en base a sus docs vinculados
 export interface ProjectFinancials {
   facturado: number;
   cobrado:   number;
@@ -78,7 +85,6 @@ export interface ProjectFinancials {
 }
 
 export async function computeProjectFinancials(
-  userId: string,
   project: Project,
   allDocs: Document[],
 ): Promise<ProjectFinancials> {
@@ -86,12 +92,11 @@ export async function computeProjectFinancials(
   const facturado = documentos
     .filter(d => d.type === 'factura')
     .reduce((a, d) => a + calcTotal(d), 0);
-  // cobrado: sumar pagos de las facturas vinculadas
   const invoices = documentos.filter(d => d.type === 'factura' && d.id);
   let cobrado = 0;
   await Promise.all(
     invoices.map(async d => {
-      const pays: Payment[] = await getPayments(userId, d.id!);
+      const pays: Payment[] = await getPayments(d.id!);
       cobrado += totalPaid(pays);
     })
   );

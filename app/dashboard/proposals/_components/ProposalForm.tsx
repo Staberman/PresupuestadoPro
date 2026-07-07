@@ -7,7 +7,7 @@ import {
   createProposal, updateProposal, getProposal, suggestProposalNumber,
   ProposalSection, newSection,
 } from '@/lib/proposals';
-import { getTemplates, ensureBuiltinTemplate, Template } from '@/lib/templates';
+import { getTemplates, ensureBuiltinTemplates, Template } from '@/lib/templates';
 import { getClients, Client } from '@/lib/clients';
 
 interface Props {
@@ -40,9 +40,9 @@ export default function ProposalForm({ mode, proposalId }: Props) {
 
   useEffect(() => {
     if (!user) return;
-    ensureBuiltinTemplate(user.uid).then(() => {
-      getTemplates(user.uid).then(setTemplates);
-      getClients(user.uid).then(setClients);
+    ensureBuiltinTemplates().then(() => {
+      getTemplates().then(setTemplates);
+      getClients().then(setClients);
     });
   }, [user]);
 
@@ -50,9 +50,9 @@ export default function ProposalForm({ mode, proposalId }: Props) {
   useEffect(() => {
     if (!user) return;
     if (mode === 'new') {
-      suggestProposalNumber(user.uid).then(setNum).catch(() => {});
+      suggestProposalNumber().then(setNum).catch(() => {});
     } else if (mode === 'edit' && proposalId) {
-      getProposal(user.uid, proposalId).then(p => {
+      getProposal(proposalId).then(p => {
         if (!p) { setError('Propuesta no encontrada.'); return; }
         setNum(p.num); setTitle(p.title); setClientName(p.clientName);
         setClientEmail(p.clientEmail); setClientPhone(p.clientPhone);
@@ -157,9 +157,9 @@ export default function ProposalForm({ mode, proposalId }: Props) {
         sections, totalAmount, dateIssue, whatsappPhone, notes,
       };
       if (mode === 'edit' && proposalId) {
-        await updateProposal(user.uid, proposalId, base);
+        await updateProposal(proposalId, base);
       } else {
-        await createProposal(user.uid, { ...base, status: 'borrador' });
+        await createProposal({ ...base, status: 'borrador' });
       }
       router.push('/dashboard/proposals');
     } catch {

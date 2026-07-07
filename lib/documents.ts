@@ -1,12 +1,7 @@
-import {
-  collection, doc, addDoc, updateDoc, deleteDoc,
-  getDocs, query, orderBy, serverTimestamp, getDoc,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
+import { mapError, mapRows, mapRow, toDb } from '@/lib/supabase-helpers';
 
 export type DocStatus = 'draft' | 'enviado' | 'aceptado' | 'rechazado' | 'vencido' | 'facturado' | 'paid';
-// 'pending' se mantiene por retrocompatibilidad con documentos existentes;
-// se trata como 'enviado' en la UI.
 export type DocType   = 'presupuesto' | 'factura';
 
 export type UnitCode = 'hora' | 'dia' | 'semana' | 'proyecto' | 'unidad' | 'km' | 'mes';
@@ -55,57 +50,65 @@ export interface Document {
   ivaRate:                number;
   dateIssue:              string;
   dateExpiry:             string;
-  fromDocId?:             string; // if this invoice came from a quote
-  clientNote?:            string; // nota dejada por el cliente al aceptar/rechazar
-  signedBy?:              string; // nombre con el que firmó el cliente
-  signedAt?:              string; // fecha de aceptación/rechazo
-  createdAt?:             unknown;
-  updatedAt?:             unknown;
+  fromDocId?:             string;
+  clientNote?:            string;
+  signedBy?:              string;
+  signedAt?:              string;
+  createdAt?:             string;
+  updatedAt?:             string;
 }
 
-export async function getDocuments(userId: string): Promise<Document[]> {
-  const q = query(
-    collection(db, 'users', userId, 'documents'),
-    orderBy('createdAt', 'desc')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Document));
+export async function getDocuments(): Promise<Document[]> {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) mapError(error, 'getDocuments');
+  return mapRows<Document>(data as Record<string, unknown>[]);
 }
 
-export async function getDocument(userId: string, docId: string): Promise<Document | null> {
-  const snap = await getDoc(doc(db, 'users', userId, 'documents', docId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Document;
+export async function getDocument(docId: string): Promise<Document | null> {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('*')
+    .eq('id', docId)
+    .maybeSingle();
+  if (error) mapError(error, 'getDocument');
+  if (!data) return null;
+  return mapRow<Document>(data as Record<string, unknown>);
 }
 
-export async function createDocument(userId: string, data: Document): Promise<string> {
-  const ref = await addDoc(collection(db, 'users', userId, 'documents'), {
-    ...data,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return ref.id;
+export async function createDocument(data: Document): Promise<string> {
+  const { data: row, error } = await supabase
+    .from('documents')
+    .insert(toDb(data as unknown as Record<string, unknown>))
+    .select('id')
+    .single();
+  if (error) mapError(error, 'createDocument');
+  return row!.id;
 }
 
-export async function updateDocument(userId: string, docId: string, data: Partial<Document>): Promise<void> {
-  await updateDoc(doc(db, 'users', userId, 'documents', docId), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+export async function updateDocument(docId: string, data: Partial<Document>): Promise<void> {
+  const { error } = await supabase
+    .from('documents')
+    .update(toDb(data as unknown as Record<string, unknown>))
+    .eq('id', docId);
+  if (error) mapError(error, 'updateDocument');
 }
 
-export async function deleteDocument(userId: string, docId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', userId, 'documents', docId));
+export async function deleteDocument(docId: string): Promise<void> {
+  const { error } = await supabase
+    .from('documents')
+    .delete()
+    .eq('id', docId);
+  if (error) mapError(error, 'deleteDocument');
 }
 
-export async function convertToInvoice(userId: string, quoteId: string, nextNum: string): Promise<string> {
-  const snap = await getDoc(doc(db, 'users', userId, 'documents', quoteId));
-  if (!snap.exists()) throw new Error('Quote not found');
+export async function convertToInvoice(quoteId: string, nextNum: string): Promise<string> {
+  const quote = await getDocument(quoteId);
+  if (!quote) throw new Error('Quote not found');
 
-  const quote = snap.data() as Document;
-
-  // Create invoice linked to quote
-  const invoiceId = await createDocument(userId, {
+  const invoiceId = await createDocument({
     ...quote,
     type:       'factura',
     num:        nextNum,
@@ -113,8 +116,7 @@ export async function convertToInvoice(userId: string, quoteId: string, nextNum:
     fromDocId:  quoteId,
   });
 
-  // Mark quote as facturado
-  await updateDocument(userId, quoteId, { status: 'facturado' });
+  await updateDocument(quoteId, { status: 'facturado' });
 
   return invoiceId;
 }

@@ -41,15 +41,15 @@ export default function ProjectsPage() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      getProjects(user.uid),
-      getDocuments(user.uid),
-      getClients(user.uid),
+      getProjects(),
+      getDocuments(),
+      getClients(),
     ]).then(async ([p, d, c]) => {
       setProjects(p); setDocs(d); setClients(c);
       // Calcular financiero por proyecto
       const f: Record<string, { facturado: number; cobrado: number }> = {};
       await Promise.all(p.map(async proj => {
-        const fin = await computeProjectFinancials(user.uid, proj, d);
+        const fin = await computeProjectFinancials(proj, d);
         f[proj.id!] = { facturado: fin.facturado, cobrado: fin.cobrado };
       }));
       setFinancials(f);
@@ -91,10 +91,10 @@ export default function ProjectsPage() {
         description, status, dateStart, dateDue, progress, budget, notes, docIds,
       };
       if (editingId) {
-        await updateProject(user.uid, editingId, data);
+        await updateProject(editingId, data);
         setProjects(projects.map(p => p.id === editingId ? { ...p, ...data } : p));
       } else {
-        const id = await createProject(user.uid, data);
+        const id = await createProject(data);
         setProjects([{ id, ...data }, ...projects]);
       }
       setShowModal(false);
@@ -107,7 +107,7 @@ export default function ProjectsPage() {
 
   async function handleDelete(id: string) {
     if (!user || !confirm('¿Eliminar este proyecto? Los documentos vinculados no se borran.')) return;
-    await deleteProject(user.uid, id);
+    await deleteProject(id);
     setProjects(projects.filter(p => p.id !== id));
   }
 

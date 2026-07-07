@@ -20,8 +20,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      getDocuments(user.uid),
-      getClients(user.uid),
+      getDocuments(),
+      getClients(),
     ]).then(async ([d, c]) => {
       setDocs(d);
       setClients(c);
@@ -29,7 +29,7 @@ export default function DashboardPage() {
       const invoices = d.filter(doc => doc.type === 'factura' && doc.id);
       await Promise.all(
         invoices.map(async doc => {
-          paymentsByDoc[doc.id!] = await getPayments(user.uid, doc.id!);
+          paymentsByDoc[doc.id!] = await getPayments(doc.id!);
         })
       );
       setMonthly(computeMonthlyIncome(d, paymentsByDoc));
@@ -91,7 +91,7 @@ export default function DashboardPage() {
           Bienvenido 👋
         </h1>
         <p style={{ color: '#7888a8', marginBottom: '32px' }}>
-          {user?.uid ? `Usuario interno` : ''}
+          Panel de Control
         </p>
 
         {/* Stats */}

@@ -1,8 +1,5 @@
-import {
-  collection, doc, addDoc, updateDoc, deleteDoc,
-  getDocs, getDoc, query, orderBy, serverTimestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
+import { mapError, mapRows, mapRow, toDb } from '@/lib/supabase-helpers';
 
 export type ProposalStatus = 'borrador' | 'enviado' | 'aprobado' | 'postergado' | 'rechazado';
 
@@ -21,30 +18,30 @@ export interface ProposalSection {
   title:       string;
   description: string;
   bullets:     string[];
-  isInfo:      boolean; // true = sección informativa final (sin número)
+  isInfo:      boolean;
 }
 
 export interface Proposal {
   id?:            string;
   num:            string;
   status:         ProposalStatus;
-  title:          string;        // ej: "Campaña completa de marketing"
+  title:          string;
   clientName:     string;
   clientEmail:    string;
   clientPhone:    string;
   clientCompany?: string;
   sections:       ProposalSection[];
-  totalAmount:    number;        // monto total único
+  totalAmount:    number;
   dateIssue:      string;
-  whatsappPhone?: string;        // teléfono para el link de WhatsApp al pie
+  whatsappPhone?: string;
   notes?:         string;
-  postergarUntil?: string;       // fecha límite si se postergó
+  postergarUntil?: string;
   signedBy?:      string;
   signedAt?:      string;
   clientNote?:    string;
   templateId?:    string;
-  createdAt?:     unknown;
-  updatedAt?:     unknown;
+  createdAt?:     string;
+  updatedAt?:     string;
 }
 
 export function newSection(isInfo = false): ProposalSection {
@@ -57,44 +54,54 @@ export function newSection(isInfo = false): ProposalSection {
   };
 }
 
-export async function getProposals(userId: string): Promise<Proposal[]> {
-  const q = query(
-    collection(db, 'users', userId, 'proposals'),
-    orderBy('createdAt', 'desc')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Proposal));
+export async function getProposals(): Promise<Proposal[]> {
+  const { data, error } = await supabase
+    .from('proposals')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) mapError(error, 'getProposals');
+  return mapRows<Proposal>(data as Record<string, unknown>[]);
 }
 
-export async function getProposal(userId: string, proposalId: string): Promise<Proposal | null> {
-  const snap = await getDoc(doc(db, 'users', userId, 'proposals', proposalId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Proposal;
+export async function getProposal(proposalId: string): Promise<Proposal | null> {
+  const { data, error } = await supabase
+    .from('proposals')
+    .select('*')
+    .eq('id', proposalId)
+    .maybeSingle();
+  if (error) mapError(error, 'getProposal');
+  if (!data) return null;
+  return mapRow<Proposal>(data as Record<string, unknown>);
 }
 
-export async function createProposal(userId: string, data: Proposal): Promise<string> {
-  const ref = await addDoc(collection(db, 'users', userId, 'proposals'), {
-    ...data,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return ref.id;
+export async function createProposal(data: Proposal): Promise<string> {
+  const { data: row, error } = await supabase
+    .from('proposals')
+    .insert(toDb(data as unknown as Record<string, unknown>))
+    .select('id')
+    .single();
+  if (error) mapError(error, 'createProposal');
+  return row!.id;
 }
 
-export async function updateProposal(userId: string, proposalId: string, data: Partial<Proposal>): Promise<void> {
-  await updateDoc(doc(db, 'users', userId, 'proposals', proposalId), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+export async function updateProposal(proposalId: string, data: Partial<Proposal>): Promise<void> {
+  const { error } = await supabase
+    .from('proposals')
+    .update(toDb(data as unknown as Record<string, unknown>))
+    .eq('id', proposalId);
+  if (error) mapError(error, 'updateProposal');
 }
 
-export async function deleteProposal(userId: string, proposalId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', userId, 'proposals', proposalId));
+export async function deleteProposal(proposalId: string): Promise<void> {
+  const { error } = await supabase
+    .from('proposals')
+    .delete()
+    .eq('id', proposalId);
+  if (error) mapError(error, 'deleteProposal');
 }
 
-// Sugiere el próximo número PR-0001, PR-0002...
-export async function suggestProposalNumber(userId: string): Promise<string> {
-  const proposals = await getProposals(userId);
+export async function suggestProposalNumber(): Promise<string> {
+  const proposals = await getProposals();
   let maxNum = 0;
   proposals.forEach(p => {
     const m = (p.num || '').match(/^PR[-]?(\d+)/i);

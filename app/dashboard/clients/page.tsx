@@ -32,7 +32,7 @@ export default function ClientsPage() {
 
   useEffect(() => {
     if (user) {
-      getClients(user.uid).then(data => {
+      getClients().then(data => {
         setClients(data);
         setClientsLoading(false);
       });
@@ -74,10 +74,10 @@ export default function ClientsPage() {
         company, cuit, fiscalCondition, sector, contactName, contactRole,
       };
       if (editingId) {
-        await updateClient(user.uid, editingId, data);
+        await updateClient(editingId, data);
         setClients(clients.map(c => c.id === editingId ? { ...c, ...data } : c));
       } else {
-        const id = await createClient(user.uid, data);
+        const id = await createClient(data);
         setClients([{ id, ...data }, ...clients]);
       }
       setShowModal(false);
@@ -90,7 +90,7 @@ export default function ClientsPage() {
 
   async function handleDelete(id: string) {
     if (!user || !confirm('¿Eliminar este cliente?')) return;
-    await deleteClient(user.uid, id);
+    await deleteClient(id);
     setClients(clients.filter(c => c.id !== id));
   }
 

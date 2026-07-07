@@ -1,14 +1,12 @@
-import {
-  doc, setDoc, getDoc, updateDoc, serverTimestamp, deleteDoc,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
+import { mapError, mapRow, toDb } from '@/lib/supabase-helpers';
 import type { Document } from '@/lib/documents';
+import { updateDocument } from '@/lib/documents';
 
 export interface PublicQuote {
   token:       string;
-  ownerUid:    string;
-  docId:       string;
-  doc:         Document;       // snapshot del presupuesto al generar el link
+  documentId:  string;
+  document:    Document;
   biz: {
     name:     string;
     address:  string;
@@ -22,55 +20,64 @@ export interface PublicQuote {
   clientNote?: string;
   signedBy?:   string;
   signedAt?:   string;
-  createdAt?:  unknown;
-  updatedAt?:  unknown;
+  createdAt?:  string;
+  updatedAt?:  string;
 }
 
-// Genera un token aleatorio seguro
 export function generateToken(length = 12): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnopqrstuvwxyz23456789';
   let out = '';
   const arr = new Uint32Array(length);
-  const cryptoObj: Crypto = (typeof globalThis !== 'undefined' && (globalThis as { crypto?: Crypto }).crypto) || (window as { crypto?: Crypto }).crypto!;
-  cryptoObj.getRandomValues(arr);
+  crypto.getRandomValues(arr);
   for (let i = 0; i < length; i++) out += chars[arr[i] % chars.length];
   return out;
 }
 
 export async function getPublicQuote(token: string): Promise<PublicQuote | null> {
-  const snap = await getDoc(doc(db, 'publicQuotes', token));
-  if (!snap.exists()) return null;
-  return snap.data() as PublicQuote;
+  const { data, error } = await supabase
+    .from('public_quotes')
+    .select('*')
+    .eq('token', token)
+    .maybeSingle();
+  if (error) mapError(error, 'getPublicQuote');
+  if (!data) return null;
+  return mapRow<PublicQuote>(data as Record<string, unknown>);
 }
 
-// Publica el quote y lo indexa también por token para lookup O(1)
 export async function publishQuoteIndexed(
-  ownerUid: string,
   document: Document,
   biz: PublicQuote['biz'],
 ): Promise<string> {
   const docId = document.id!;
-  const existingSnap = await getDoc(doc(db, 'quoteTokens', docId));
+
+  const { data: existing } = await supabase
+    .from('public_quotes')
+    .select('token')
+    .eq('document_id', docId)
+    .maybeSingle();
+
   let token: string;
-  if (existingSnap.exists()) {
-    token = (existingSnap.data() as PublicQuote).token;
+  if (existing) {
+    token = existing.token;
   } else {
     token = generateToken();
   }
+
   const payload = {
     token,
-    ownerUid,
-    docId,
-    doc: document,
+    document_id: docId,
+    document,
     biz,
-    status: 'pending' as const,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
-  // index por docId (para re-publicar sin duplicar)
-  await setDoc(doc(db, 'quoteTokens', docId), payload, { merge: true });
-  // index por token (para lookup público O(1))
-  await setDoc(doc(db, 'publicQuotes', token), payload, { merge: true });
+
+  const { error } = await supabase
+    .from('public_quotes')
+    .upsert(payload, { onConflict: 'token' });
+  if (error) mapError(error, 'publishQuoteIndexed');
+
   return token;
 }
 
@@ -80,39 +87,42 @@ export async function respondPublicQuote(
   clientNote?: string,
   signedBy?: string,
 ): Promise<void> {
-  const ref = doc(db, 'publicQuotes', token);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error('Token no encontrado');
-  const data = snap.data() as PublicQuote;
+  const { data: snap, error: getErr } = await supabase
+    .from('public_quotes')
+    .select('*')
+    .eq('token', token)
+    .maybeSingle();
+  if (getErr) mapError(getErr, 'respondPublicQuote');
+  if (!snap) throw new Error('Token no encontrado');
+
   const now = new Date().toISOString();
   const update = {
     status: response,
+    client_note: clientNote || '',
+    signed_by: signedBy || '',
+    signed_at: now,
+    updated_at: now,
+  };
+
+  const { error: updErr } = await supabase
+    .from('public_quotes')
+    .update(update)
+    .eq('token', token);
+  if (updErr) mapError(updErr, 'respondPublicQuote.update');
+
+  // Update original document
+  await updateDocument(snap.document_id, {
+    status: response === 'accepted' ? 'aceptado' : 'rechazado',
     clientNote: clientNote || '',
     signedBy: signedBy || '',
     signedAt: now,
-    updatedAt: serverTimestamp(),
-  };
-  // Actualizar snapshot público
-  await updateDoc(ref, update);
-  // Sincronizar con index por docId
-  await updateDoc(doc(db, 'quoteTokens', data.docId), update);
-  // Actualizar el documento original del dueño
-  await updateDoc(
-    doc(db, 'users', data.ownerUid, 'documents', data.docId),
-    {
-      status: response === 'accepted' ? 'aceptado' : 'rechazado',
-      clientNote: clientNote || '',
-      signedBy: signedBy || '',
-      signedAt: now,
-      updatedAt: serverTimestamp(),
-    }
-  );
+  } as any);
 }
 
 export async function unpublishQuote(docId: string): Promise<void> {
-  const snap = await getDoc(doc(db, 'quoteTokens', docId));
-  if (!snap.exists()) return;
-  const token = (snap.data() as PublicQuote).token;
-  await deleteDoc(doc(db, 'quoteTokens', docId));
-  await deleteDoc(doc(db, 'publicQuotes', token));
+  const { error } = await supabase
+    .from('public_quotes')
+    .delete()
+    .eq('document_id', docId);
+  if (error) mapError(error, 'unpublishQuote');
 }
