@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getDocument, updateDocument, calcTotal, Document } from '@/lib/documents';
+import { getDocument, updateDocument, calcTotal, calcSubtotal, Document } from '@/lib/documents';
 import { getPayments, addPayment, deletePayment, Payment, PAYMENT_METHODS, totalPaid } from '@/lib/payments';
 import { generatePDF, BizPdf } from '@/lib/pdf';
 import { statusMeta, normalizeStatus } from '@/lib/status';
@@ -159,6 +159,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   }
 
   const total = calcTotal(doc);
+  const sub = calcSubtotal(doc);
   const paid = totalPaid(payments);
   const balance = total - paid;
   const s = statusMeta(doc.status);
@@ -258,9 +259,6 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           <div style={{ fontSize: '.82rem', color: '#7888a8', marginTop: 6 }}>
             {doc.clientEmail && <div>📧 {doc.clientEmail}</div>}
             {doc.clientPhone && <div>📱 {doc.clientPhone}</div>}
-            {doc.clientAddr && <div>📍 {doc.clientAddr}</div>}
-            {doc.clientCuit && <div>CUIT/CUIL: {doc.clientCuit}</div>}
-            {doc.clientFiscalCondition && <div>Condición fiscal: {doc.clientFiscalCondition}</div>}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '16px', fontSize: '.82rem' }}>
             <div><span style={{ color: '#7888a8' }}>Emisión:</span> <strong>{doc.dateIssue || '—'}</strong></div>
@@ -268,29 +266,36 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* Ítems */}
+        {/* Secciones e ítems */}
         <div style={card}>
-          <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d', marginBottom: '12px' }}>Ítems</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {doc.items.map((it, i) => {
-              const line = it.qty * it.price * (1 - (it.disc || 0) / 100);
+          <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d', marginBottom: '12px' }}>Servicios</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {doc.items.map((sec, si) => {
+              const hasItems = sec.items.some(it => it.name);
+              if (!hasItems) return null;
               return (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f4ff', fontSize: '.85rem' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: '#0e1b3d', fontWeight: 600 }}>{it.desc}</div>
-                    <div style={{ color: '#7888a8', fontSize: '.78rem', marginTop: 2 }}>
-                      {it.qty} {it.unit || 'unidad'} × ${fmt(it.price)}{it.disc ? ` · desc. ${it.disc}%` : ''}
+                <div key={sec.id || si}>
+                  {sec.title && (
+                    <div style={{ fontSize: '.82rem', fontWeight: '700', color: '#364061', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '8px' }}>
+                      {sec.title}
                     </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {sec.items.filter(it => it.name).map((it, ii) => (
+                      <div key={it.id || ii} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f4ff', fontSize: '.85rem' }}>
+                        <div style={{ color: '#0e1b3d', fontWeight: 600 }}>{it.name}</div>
+                        <div style={{ fontWeight: 700, color: '#0e1b3d' }}>${fmt(it.price)}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontWeight: 700, color: '#0e1b3d' }}>${fmt(line)}</div>
                 </div>
               );
             })}
           </div>
           <div style={{ textAlign: 'right', marginTop: '16px' }}>
-            <div style={{ fontSize: '.82rem', color: '#7888a8' }}>Subtotal: ${fmt(doc.items.reduce((a, it) => a + it.qty * it.price * (1 - (it.disc || 0) / 100), 0))}</div>
-            {doc.discount > 0 && <div style={{ fontSize: '.78rem', color: '#7888a8' }}>Desc. global: -${fmt(total * doc.discount / 100 / (1 + doc.ivaRate / 100))}</div>}
-            {doc.ivaRate > 0 && <div style={{ fontSize: '.78rem', color: '#7888a8' }}>IVA ({doc.ivaRate}%): ${fmt(total - total / (1 + doc.ivaRate / 100))}</div>}
+            <div style={{ fontSize: '.82rem', color: '#7888a8' }}>Subtotal: ${fmt(doc.items.reduce((a, sec) => a + sec.items.reduce((b, it) => b + it.price, 0), 0))}</div>
+            {doc.discount > 0 && <div style={{ fontSize: '.78rem', color: '#7888a8' }}>Desc. global: -${fmt(sub * doc.discount / 100)}</div>}
+            {doc.ivaRate > 0 && <div style={{ fontSize: '.78rem', color: '#7888a8' }}>IVA ({doc.ivaRate}%): +${fmt((sub - sub * doc.discount / 100) * doc.ivaRate / 100)}</div>}
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f2d6e', marginTop: 4 }}>Total: ${fmt(total)}</div>
           </div>
         </div>

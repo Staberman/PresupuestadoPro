@@ -22,12 +22,16 @@ export function unitLabel(code: UnitCode | undefined, qty: number): string {
   return Math.abs(qty) === 1 ? u.singular : u.plural;
 }
 
-export interface DocItem {
-  desc:   string;
-  qty:    number;
-  unit?:  UnitCode;
-  price:  number;
-  disc:   number;
+export interface SectionItem {
+  id:    string;
+  name:  string;
+  price: number;
+}
+
+export interface ItemSection {
+  id:    string;
+  title: string;
+  items: SectionItem[];
 }
 
 export interface Document {
@@ -38,13 +42,8 @@ export interface Document {
   clientName:             string;
   clientEmail:            string;
   clientPhone:            string;
-  clientAddr:             string;
   clientCompany?:         string;
-  clientCuit?:            string;
-  clientFiscalCondition?: string;
-  clientContactName?:     string;
-  clientContactRole?:     string;
-  items:                  DocItem[];
+  items:                  ItemSection[];
   notes:                  string;
   discount:               number;
   ivaRate:                number;
@@ -121,10 +120,12 @@ export async function convertToInvoice(quoteId: string, nextNum: string): Promis
   return invoiceId;
 }
 
+export function calcSubtotal(doc: Document): number {
+  return doc.items.reduce((a, sec) =>
+    a + sec.items.reduce((b, it) => b + it.price, 0), 0);
+}
+
 export function calcTotal(doc: Document): number {
-  const sub = doc.items.reduce((a, it) => {
-    const line = it.qty * it.price;
-    return a + line - line * (it.disc || 0) / 100;
-  }, 0);
+  const sub = calcSubtotal(doc);
   return (sub - sub * (doc.discount || 0) / 100) * (1 + (doc.ivaRate || 0) / 100);
 }

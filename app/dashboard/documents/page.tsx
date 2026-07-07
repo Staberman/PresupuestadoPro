@@ -175,7 +175,7 @@ export default function DocumentsPage() {
                         {d.clientName || 'Sin nombre'}
                       </div>
                       <div style={{ fontSize: '.82rem', color: '#7888a8' }}>
-                        {d.dateIssue} · {d.items.length} ítem{d.items.length !== 1 ? 's' : ''}
+                        {d.dateIssue} · {d.items.reduce((a, s) => a + s.items.filter(i => i.name).length, 0)} ítem{d.items.reduce((a, s) => a + s.items.filter(i => i.name).length, 0) !== 1 ? 's' : ''}
                       </div>
                       <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '.72rem', color: '#7888a8' }}>Estado:</span>

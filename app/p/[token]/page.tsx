@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { getPublicQuote, respondPublicQuote, PublicQuote } from '@/lib/publicQuote';
 import { getPublicProposal, respondPublicProposal, PublicProposal } from '@/lib/publicProposal';
-import { calcTotal, unitLabel } from '@/lib/documents';
+import { calcTotal, calcSubtotal } from '@/lib/documents';
 import { generatePDF, generateProposalPDF } from '@/lib/pdf';
 
 type Mode = 'quote' | 'proposal';
@@ -136,16 +136,25 @@ export default function PublicPage() {
           </div>
           <div style={{ background: 'white', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 3px rgba(10,30,80,.08)', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#0e1b3d', marginBottom: 12 }}>Detalle</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {d.items.map((it, i) => {
-                const line = it.qty * it.price * (1 - (it.disc || 0) / 100);
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {d.items.map((sec, si) => {
+                const hasItems = sec.items.some(it => it.name);
+                if (!hasItems) return null;
                 return (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f4ff', fontSize: '.88rem' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ color: '#0e1b3d', fontWeight: 600 }}>{it.desc}</div>
-                      <div style={{ color: '#7888a8', fontSize: '.78rem', marginTop: 2 }}>{it.qty} {unitLabel(it.unit, it.qty) || 'unidad'} × ${fmt(it.price)}{it.disc ? ` · desc. ${it.disc}%` : ''}</div>
+                  <div key={sec.id || si}>
+                    {sec.title && (
+                      <div style={{ fontSize: '.82rem', fontWeight: '700', color: '#364061', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '8px' }}>
+                        {sec.title}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {sec.items.filter(it => it.name).map((it, ii) => (
+                        <div key={it.id || ii} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f4ff', fontSize: '.88rem' }}>
+                          <div style={{ color: '#0e1b3d', fontWeight: 600 }}>{it.name}</div>
+                          <div style={{ fontWeight: 700, color: '#0e1b3d' }}>${fmt(it.price)}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div style={{ fontWeight: 700, color: '#0e1b3d' }}>${fmt(line)}</div>
                   </div>
                 );
               })}

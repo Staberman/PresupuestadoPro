@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { Document, DocItem, calcTotal, unitLabel } from '@/lib/documents';
+import { Document, calcSubtotal, calcTotal, type SectionItem } from '@/lib/documents';
 import { statusLabel } from '@/lib/status';
 import type { Proposal } from '@/lib/proposals';
 import { LOGO_WATERMARK } from '@/lib/logo-watermark';
@@ -16,11 +16,6 @@ export interface BizPdf {
   cuit:     string;
   currency: string;
   footer:   string;
-}
-
-function lineTotal(it: DocItem): number {
-  const line = it.qty * it.price;
-  return line - line * (it.disc || 0) / 100;
 }
 
 const W = 210, H = 297;
@@ -95,6 +90,42 @@ function headerBar(pdf: jsPDF) {
   pdf.rect(0, 0, W, 20, 'F');
 }
 
+function drawSection(pdf: jsPDF, title: string, items: SectionItem[], y: number, money: (n: number) => string): number {
+  // Section title
+  pdf.setFillColor(...BAR);
+  pdf.rect(lm, y, cw, 7, 'F');
+  pdf.setTextColor(...TXT2);
+  pdf.setFontSize(7);
+  pdf.setFont('PlusJakartaSans', 'bold');
+  pdf.text(title || 'Servicios', lm + 3, y + 5);
+  y += 7;
+
+  items.forEach((it, i) => {
+    if (it.name) {
+      const nameLines = pdf.splitTextToSize(it.name, cw - 80);
+      const rowH = Math.max(8, nameLines.length * 3.5 + 3);
+
+      if (y + rowH > 240) { pdf.addPage(); setupPage(pdf); y = 24; }
+
+      if (i % 2 === 0) {
+        pdf.setFillColor(...BAR);
+        pdf.rect(lm, y, cw, rowH, 'F');
+      }
+
+      pdf.setTextColor(...TXT);
+      pdf.setFontSize(7);
+      pdf.setFont('PlusJakartaSans', 'normal');
+      pdf.text(nameLines, lm + 3, y + 4);
+
+      pdf.setFont('PlusJakartaSans', 'bold');
+      pdf.text(money(it.price), rm - 3, y + 4, { align: 'right' });
+      y += rowH;
+    }
+  });
+
+  return y;
+}
+
 export async function generatePDF(doc: Document, biz: BizPdf) {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   await registerFonts(pdf);
@@ -108,17 +139,6 @@ export async function generatePDF(doc: Document, biz: BizPdf) {
 
   // ── CLIENT INFO ──
   y = 28;
-
-  const clientLines: string[] = [];
-  if (doc.clientCompany) clientLines.push(doc.clientCompany);
-  if (doc.clientCuit) clientLines.push(`CUIT/CUIL: ${doc.clientCuit}`);
-  if (doc.clientFiscalCondition) clientLines.push(`Condición fiscal: ${doc.clientFiscalCondition}`);
-  if (doc.clientAddr) clientLines.push(doc.clientAddr);
-  const contactLine = [doc.clientContactName, doc.clientContactRole].filter(Boolean).join(' · ');
-  if (contactLine) clientLines.push(contactLine);
-  const contactLines: string[] = [];
-  if (doc.clientPhone) contactLines.push(`Tel: ${doc.clientPhone}`);
-  if (doc.clientEmail) contactLines.push(`Email: ${doc.clientEmail}`);
 
   pdf.setTextColor(...TXT3);
   pdf.setFontSize(6.5);
@@ -136,8 +156,9 @@ export async function generatePDF(doc: Document, biz: BizPdf) {
   pdf.setTextColor(...TXT2);
   pdf.setFontSize(7.5);
   pdf.setFont('PlusJakartaSans', 'normal');
-  clientLines.forEach(l => { pdf.text(l, lm, cy); cy += 4; });
-  contactLines.forEach(l => { pdf.text(l, lm, cy); cy += 4; });
+  if (doc.clientCompany) { pdf.text(doc.clientCompany, lm, cy); cy += 4; }
+  if (doc.clientPhone) { pdf.text(`Tel: ${doc.clientPhone}`, lm, cy); cy += 4; }
+  if (doc.clientEmail) { pdf.text(`Email: ${doc.clientEmail}`, lm, cy); cy += 4; }
 
   const clientH = cy - y + 2;
 
@@ -174,56 +195,11 @@ export async function generatePDF(doc: Document, biz: BizPdf) {
   drawDivider(pdf, y);
   y += 5;
 
-  // ── ITEMS TABLE ──
-  const xDesc  = lm;
-  const xQty   = lm + 80;
-  const xUnit  = lm + 100;
-  const xPrice = lm + 122;
-  const xDisc  = lm + 146;
-  const xTotal = rm;
-
-  if (y + 8 > 250) { pdf.addPage(); setupPage(pdf); y = 24; }
-
-  pdf.setFillColor(...BAR);
-  pdf.rect(lm, y, cw, 7, 'F');
-  pdf.setTextColor(...TXT2);
-  pdf.setFontSize(6);
-  pdf.setFont('PlusJakartaSans', 'bold');
-  pdf.text('DESCRIPCIÓN', xDesc, y + 5);
-  pdf.text('CANT.', xQty, y + 5, { align: 'center' });
-  pdf.text('UNIDAD', xUnit, y + 5, { align: 'center' });
-  pdf.text('TARIFA', xPrice, y + 5, { align: 'center' });
-  pdf.text('DESC.%', xDisc, y + 5, { align: 'center' });
-  pdf.text('TOTAL', xTotal, y + 5, { align: 'right' });
-  y += 7;
-
-  doc.items.forEach((it, i) => {
-    const lineFinal = lineTotal(it);
-    const descLines = pdf.splitTextToSize(it.desc || '', 76);
-    const rowH = Math.max(8, descLines.length * 3.5 + 3);
-
-    if (y + rowH > 240) { pdf.addPage(); setupPage(pdf); y = 24; }
-
-    if (i % 2 === 0) {
-      pdf.setFillColor(...BAR);
-      pdf.rect(lm, y, cw, rowH, 'F');
+  // ── ITEMS (SECTIONS) ──
+  doc.items.forEach(sec => {
+    if (sec.items.some(it => it.name)) {
+      y = drawSection(pdf, sec.title, sec.items, y, money);
     }
-
-    pdf.setTextColor(...TXT);
-    pdf.setFontSize(7);
-    pdf.setFont('PlusJakartaSans', 'normal');
-    pdf.text(descLines, xDesc, y + 4);
-
-    pdf.setTextColor(...TXT3);
-    pdf.text(String(it.qty), xQty, y + 4, { align: 'center' });
-    pdf.text(unitLabel(it.unit, it.qty) || '—', xUnit, y + 4, { align: 'center' });
-    pdf.text(money(it.price), xPrice, y + 4, { align: 'center' });
-    pdf.text(it.disc ? `${it.disc}%` : '—', xDisc, y + 4, { align: 'center' });
-
-    pdf.setTextColor(...TXT);
-    pdf.setFont('PlusJakartaSans', 'bold');
-    pdf.text(money(lineFinal), xTotal, y + 4, { align: 'right' });
-    y += rowH;
   });
 
   // ── TOTALS ──
@@ -232,6 +208,7 @@ export async function generatePDF(doc: Document, biz: BizPdf) {
   y += 4;
 
   const totX = rm - 60;
+  const sub = calcSubtotal(doc);
 
   function totRow(label: string, value: string, bold = false) {
     pdf.setFontSize(bold ? 9 : 7.5);
@@ -243,13 +220,10 @@ export async function generatePDF(doc: Document, biz: BizPdf) {
     y += bold ? 6.5 : 5;
   }
 
-  const sub = doc.items.reduce((a, it) => a + lineTotal(it), 0);
-
   totRow('Subtotal:', money(sub));
   if (doc.discount) totRow(`Descuento (${doc.discount}%):`, `-${money(sub * doc.discount / 100)}`);
   if (doc.ivaRate) totRow(`IVA (${doc.ivaRate}%):`, money((sub - sub * (doc.discount || 0) / 100) * doc.ivaRate / 100));
 
-  // Total: subtle, just a line above + bold text
   drawDivider(pdf, y - 1);
   y += 4;
   pdf.setTextColor(...TXT);
@@ -294,7 +268,6 @@ export async function generateProposalPDF(proposal: Proposal, biz: BizPdf) {
 
   y = 28;
 
-  // ── CLIENT INFO + DATE ──
   pdf.setTextColor(...TXT3);
   pdf.setFontSize(6.5);
   pdf.setFont('PlusJakartaSans', 'bold');
@@ -326,7 +299,6 @@ export async function generateProposalPDF(proposal: Proposal, biz: BizPdf) {
 
   y += 18;
 
-  // ── MONTO TOTAL ── just text, no card
   pdf.setTextColor(...TXT3);
   pdf.setFontSize(7);
   pdf.setFont('PlusJakartaSans', 'bold');
@@ -340,7 +312,6 @@ export async function generateProposalPDF(proposal: Proposal, biz: BizPdf) {
   drawDivider(pdf, y);
   y += 5;
 
-  // ── SECCIONES ──
   let numberedCount = 0;
   for (const s of proposal.sections) {
     if (!s.isInfo) numberedCount++;
@@ -384,7 +355,6 @@ export async function generateProposalPDF(proposal: Proposal, biz: BizPdf) {
     y = iy + 6;
   }
 
-  // ── NOTES ──
   if (proposal.notes) {
     if (y + 14 > 260) { pdf.addPage(); setupPage(pdf); y = 24; }
     pdf.setTextColor(...TXT3);
