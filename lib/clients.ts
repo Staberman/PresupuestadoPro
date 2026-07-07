@@ -41,13 +41,7 @@ export async function getClients(userId: string): Promise<Client[]> {
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Client));
 }
 
-export async function createClient(userId: string, data: Client, plan: string): Promise<string> {
-  if (plan === 'free') {
-    const existing = await getClients(userId);
-    if (existing.length >= 50) {
-      throw new Error('LIMIT_REACHED');
-    }
-  }
+export async function createClient(userId: string, data: Client): Promise<string> {
   const ref = await addDoc(collection(db, 'users', userId, 'clients'), {
     ...data,
     createdAt: serverTimestamp(),

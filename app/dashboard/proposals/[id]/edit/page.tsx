@@ -16,10 +16,6 @@ export default function EditProposalPage({ params }: { params: Promise<{ id: str
   useEffect(() => { params.then(p => setProposalId(p.id)); }, [params]);
 
   useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
-
-  useEffect(() => {
     if (user && proposalId) {
       getProposal(user.uid, proposalId).then(p => {
         if (!p) { setNotFound(true); return; }

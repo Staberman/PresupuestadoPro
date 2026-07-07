@@ -39,10 +39,6 @@ export default function ProposalForm({ mode, proposalId }: Props) {
   const dragIdx = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
-
-  useEffect(() => {
     if (!user) return;
     ensureBuiltinTemplate(user.uid).then(() => {
       getTemplates(user.uid).then(setTemplates);

@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, updateDoc, deleteDoc,
-  getDocs, query, where, orderBy, serverTimestamp, getDoc,
+  getDocs, query, orderBy, serverTimestamp, getDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -78,27 +78,9 @@ export async function getDocument(userId: string, docId: string): Promise<Docume
   return { id: snap.id, ...snap.data() } as Document;
 }
 
-export async function createDocument(userId: string, data: Document, plan: string): Promise<string> {
-  // Server-side plan enforcement
-  if (plan === 'free') {
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
-    const q = query(
-      collection(db, 'users', userId, 'documents'),
-      where('monthKey', '==', monthKey)
-    );
-    const snap = await getDocs(q);
-    if (snap.size >= 50) {
-      throw new Error('LIMIT_REACHED');
-    }
-  }
-
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
-
+export async function createDocument(userId: string, data: Document): Promise<string> {
   const ref = await addDoc(collection(db, 'users', userId, 'documents'), {
     ...data,
-    monthKey,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -129,7 +111,7 @@ export async function convertToInvoice(userId: string, quoteId: string, nextNum:
     num:        nextNum,
     status:     'enviado',
     fromDocId:  quoteId,
-  }, 'pro'); // conversion always allowed
+  });
 
   // Mark quote as facturado
   await updateDocument(userId, quoteId, { status: 'facturado' });

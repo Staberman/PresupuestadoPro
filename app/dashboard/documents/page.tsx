@@ -8,7 +8,7 @@ import { generatePDF, BizPdf } from '@/lib/pdf';
 import { statusMeta, normalizeStatus, shouldExpire, STATUS_META } from '@/lib/status';
 
 export default function DocumentsPage() {
-  const { user, loading, isPro } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const [docs, setDocs]               = useState<Document[]>([]);
@@ -16,10 +16,6 @@ export default function DocumentsPage() {
   const [filter, setFilter]           = useState<'all' | 'presupuesto' | 'factura'>('all');
   const [search, setSearch]           = useState('');
   const [biz, setBiz]                 = useState<BizPdf>({ name: '', address: '', phone: '', email: '', cuit: '', currency: 'ARS', footer: '' });
-
-  useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
 
   useEffect(() => {
     if (user) {
@@ -217,12 +213,12 @@ export default function DocumentsPage() {
                             → Factura
                           </button>
                         )}
-                        <button
-                          onClick={() => generatePDF(d, biz, isPro)}
-                          style={{ background: '#f0f4ff', color: '#0f2d6e', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}
-                        >
-                          📄 PDF
-                        </button>
+                          <button
+                            onClick={() => generatePDF(d, biz)}
+                            style={{ background: '#f0f4ff', color: '#0f2d6e', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}
+                          >
+                            📄 PDF
+                          </button>
                         <button onClick={() => router.push(`/dashboard/documents/${d.id}/edit`)} style={{ background: '#f0f4ff', color: '#1a56e8', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
                           Editar
                         </button>

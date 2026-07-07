@@ -9,17 +9,13 @@ import { normalizeStatus } from '@/lib/status';
 import { getPayments, computeMonthlyIncome, Payment, MonthlyIncome } from '@/lib/payments';
 
 export default function DashboardPage() {
-  const { user, profile, loading, isPro, logout } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const [docs, setDocs]           = useState<Document[]>([]);
   const [clients, setClients]     = useState<Client[]>([]);
   const [monthly, setMonthly]     = useState<MonthlyIncome[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
-
-  useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -29,7 +25,6 @@ export default function DashboardPage() {
     ]).then(async ([d, c]) => {
       setDocs(d);
       setClients(c);
-      // Cargar pagos solo de facturas
       const paymentsByDoc: Record<string, Payment[]> = {};
       const invoices = d.filter(doc => doc.type === 'factura' && doc.id);
       await Promise.all(
@@ -87,23 +82,6 @@ export default function DashboardPage() {
           Presupuesto<span style={{ color: '#6389f0' }}>Pro</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{
-            background: isPro ? 'rgba(26,86,232,.4)' : 'rgba(255,255,255,.1)',
-            color: 'white', borderRadius: '20px', padding: '4px 12px',
-            fontSize: '.75rem', fontWeight: '600',
-          }}>
-            {isPro ? (profile?.proStatus === 'lifetime' ? '💎 Pro Vitalicio' : '⭐ Pro') : 'Plan Gratuito'}
-          </span>
-          <button
-            onClick={logout}
-            style={{
-              background: 'rgba(255,255,255,.1)', border: 'none',
-              color: 'white', borderRadius: '8px', padding: '6px 14px',
-              fontSize: '.8rem', cursor: 'pointer',
-            }}
-          >
-            Salir
-          </button>
         </div>
       </div>
 
@@ -113,7 +91,7 @@ export default function DashboardPage() {
           Bienvenido 👋
         </h1>
         <p style={{ color: '#7888a8', marginBottom: '32px' }}>
-          {profile?.email}
+          {user?.uid ? `Usuario interno` : ''}
         </p>
 
         {/* Stats */}

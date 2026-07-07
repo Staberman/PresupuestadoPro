@@ -10,7 +10,7 @@ import { statusMeta, normalizeStatus } from '@/lib/status';
 import { publishQuoteIndexed } from '@/lib/publicQuote';
 
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { user, loading, isPro } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [docId, setDocId]         = useState<string | null>(null);
   const [doc, setDoc]             = useState<Document | null>(null);
@@ -34,10 +34,6 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const [sendNote, setSendNote]     = useState('');
 
   useEffect(() => { params.then(p => setDocId(p.id)); }, [params]);
-
-  useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
 
   useEffect(() => {
     if (user && docId) {
@@ -196,7 +192,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           <button onClick={() => router.push('/dashboard/documents')} style={{ background: 'rgba(255,255,255,.1)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', cursor: 'pointer' }}>
             ← Volver
           </button>
-          <button onClick={() => generatePDF(doc, biz, isPro)} style={{ background: '#1a56e8', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: 'pointer' }}>
+          <button onClick={() => generatePDF(doc, biz)} style={{ background: '#1a56e8', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: 'pointer' }}>
             📄 Descargar PDF
           </button>
           {doc.type === 'presupuesto' && (

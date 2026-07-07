@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function DocumentForm({ mode, initial, docId }: Props) {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const [type, setType]               = useState<'presupuesto' | 'factura'>(initial?.type ?? 'presupuesto');
@@ -119,15 +119,11 @@ export default function DocumentForm({ mode, initial, docId }: Props) {
       if (mode === 'edit' && docId) {
         await updateDocument(user.uid, docId, docData);
       } else {
-        await createDocument(user.uid, docData, profile?.proStatus || 'free');
+        await createDocument(user.uid, docData);
       }
       router.push('/dashboard/documents');
-    } catch (err) {
-      if ((err as Error).message === 'LIMIT_REACHED') {
-        setError('Alcanzaste el límite de 50 documentos este mes. Actualizá a Pro.');
-      } else {
-        setError('Error al guardar. Intentá de nuevo.');
-      }
+    } catch {
+      setError('Error al guardar. Intentá de nuevo.');
     } finally {
       setSaving(false);
     }

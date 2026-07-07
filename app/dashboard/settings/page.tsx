@@ -21,16 +21,12 @@ const defaultBiz: BizConfig = {
 };
 
 export default function SettingsPage() {
-  const { user, profile, loading, isPro } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const [biz, setBiz]     = useState<BizConfig>(defaultBiz);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
-
-  useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -136,59 +132,6 @@ export default function SettingsPage() {
                 placeholder="Válido por 15 días. Precios sujetos a cambio." style={inp} />
             </div>
           </div>
-        </div>
-
-        {/* Plan info */}
-        <div style={{ ...card, borderLeft: '3px solid #1a56e8' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: '700', color: '#0e1b3d', marginBottom: '8px' }}>
-            Tu plan
-          </h2>
-          <p style={{ fontSize: '.88rem', color: '#7888a8', marginBottom: '12px' }}>
-            {isPro
-              ? `Plan ${profile?.proStatus === 'lifetime' ? 'Pro Vitalicio 💎' : 'Pro Mensual ⭐'} — Acceso completo activo.`
-              : 'Plan Gratuito — 50 documentos/mes · PDF con marca de agua.'}
-          </p>
-          {!isPro && (
-            <div style={{ background: '#f0f4ff', borderRadius: '10px', padding: '16px' }}>
-              <div style={{ fontWeight: '700', color: '#0e1b3d', marginBottom: '8px' }}>
-                Activar Pro
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  id="codeInput"
-                  placeholder="Ingresá tu código de activación"
-                  style={{ ...inp, flex: 1 }}
-                />
-                <button
-                  onClick={async () => {
-                    const input = document.getElementById('codeInput') as HTMLInputElement;
-                    const code = input?.value?.trim();
-                    if (!code || !user) return;
-                    try {
-                      const { db } = await import('@/lib/firebase');
-                      const { doc, getDoc, writeBatch, serverTimestamp } = await import('firebase/firestore');
-                      const codeSnap = await getDoc(doc(db, 'activationCodes', code));
-                      if (!codeSnap.exists()) { alert('Código incorrecto.'); return; }
-                      const codeData = codeSnap.data();
-                      if (!codeData.active) { alert('Este código ya no está activo.'); return; }
-                      if (codeData.usedBy && codeData.usedBy !== user.uid) { alert('Este código ya fue usado.'); return; }
-                      const batch = writeBatch(db);
-                      batch.update(doc(db, 'activationCodes', code), { usedBy: user.uid, usedAt: serverTimestamp() });
-                      batch.set(doc(db, 'users', user.uid), { proStatus: codeData.plan, proActivatedAt: serverTimestamp() }, { merge: true });
-                      await batch.commit();
-                      alert(`✓ Plan ${codeData.plan === 'lifetime' ? 'Pro Vitalicio' : 'Pro Mensual'} activado.`);
-                      router.refresh();
-                    } catch {
-                      alert('Error al activar. Intentá de nuevo.');
-                    }
-                  }}
-                  style={{ padding: '10px 16px', background: '#1a56e8', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' as const }}
-                >
-                  Activar
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         <button onClick={handleSave} disabled={saving} style={{

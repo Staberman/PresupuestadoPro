@@ -18,10 +18,6 @@ export default function EditDocumentPage({ params }: { params: Promise<{ id: str
   }, [params]);
 
   useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
-
-  useEffect(() => {
     if (user && docId) {
       getDocument(user.uid, docId).then(d => {
         if (!d) setNotFound(true);

@@ -25,10 +25,6 @@ export default function ServicesPage() {
   const [category, setCategory]   = useState('');
 
   useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
-
-  useEffect(() => {
     if (user) {
       getServices(user.uid).then(data => {
         setServices(data);

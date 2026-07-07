@@ -9,8 +9,7 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
-    router.replace(user ? '/dashboard' : '/login');
+    if (!loading && user) router.replace('/dashboard');
   }, [user, loading, router]);
 
   return (

@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getClients, createClient, updateClient, deleteClient, Client, FISCAL_CONDITIONS, FiscalCondition } from '@/lib/clients';
 
 export default function ClientsPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const [clients, setClients]             = useState<Client[]>([]);
@@ -29,10 +29,6 @@ export default function ClientsPage() {
   const [sector, setSector]               = useState('');
   const [contactName, setContactName]     = useState('');
   const [contactRole, setContactRole]     = useState('');
-
-  useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
 
   useEffect(() => {
     if (user) {
@@ -81,16 +77,12 @@ export default function ClientsPage() {
         await updateClient(user.uid, editingId, data);
         setClients(clients.map(c => c.id === editingId ? { ...c, ...data } : c));
       } else {
-        const id = await createClient(user.uid, data, profile?.proStatus || 'free');
+        const id = await createClient(user.uid, data);
         setClients([{ id, ...data }, ...clients]);
       }
       setShowModal(false);
-    } catch (err) {
-      if ((err as Error).message === 'LIMIT_REACHED') {
-        setError('Alcanzaste el límite de 50 clientes. Actualizá a Pro.');
-      } else {
-        setError('Error al guardar. Intentá de nuevo.');
-      }
+    } catch {
+      setError('Error al guardar. Intentá de nuevo.');
     } finally {
       setSaving(false);
     }

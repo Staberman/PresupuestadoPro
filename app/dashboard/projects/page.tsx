@@ -39,10 +39,6 @@ export default function ProjectsPage() {
   const [financials, setFinancials]   = useState<Record<string, { facturado: number; cobrado: number }>>({});
 
   useEffect(() => {
-    if (!loading && !user) router.push('/login');
-  }, [user, loading, router]);
-
-  useEffect(() => {
     if (!user) return;
     Promise.all([
       getProjects(user.uid),
