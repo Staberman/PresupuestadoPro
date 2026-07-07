@@ -119,7 +119,7 @@ export default function PublicPage() {
               <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0e1b3d', margin: 0 }}>Presupuesto #{d.num}</h1>
               <div style={{ fontSize: '.82rem', color: '#7888a8', marginTop: 4 }}>Emitido: {d.dateIssue}{d.dateExpiry && ` · Válido hasta: ${d.dateExpiry}`}</div>
             </div>
-            <button onClick={() => generatePDF(d, quote.biz)} style={{ background: '#1a56e8', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 14px', fontSize: '.82rem', fontWeight: 600, cursor: 'pointer' }}>📄 Descargar PDF</button>
+            <button onClick={async () => { await generatePDF(d, quote.biz); }} style={{ background: '#1a56e8', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 14px', fontSize: '.82rem', fontWeight: 600, cursor: 'pointer' }}>📄 Descargar PDF</button>
           </div>
           {quote.status !== 'pending' && (
             <div style={{ background: quote.status === 'accepted' ? '#d1fae5' : '#fee2e2', color: quote.status === 'accepted' ? '#0a7c4b' : '#c41c1c', borderRadius: '12px', padding: '14px 18px', marginBottom: '16px', fontSize: '.9rem', fontWeight: 600 }}>
@@ -197,7 +197,7 @@ export default function PublicPage() {
             <h1 style={{ color: 'white', fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>{p.title || 'Propuesta'}</h1>
             <div style={{ color: '#93adf5', fontSize: '.82rem', marginTop: 6, display: 'flex', alignItems: 'center', gap: '12px' }}>
               Fecha de emisión: {p.dateIssue}
-              <button onClick={() => generateProposalPDF(p, { name: p.title || 'Propuesta', address: '', phone: '', email: '', cuit: '', currency: 'ARS', footer: '' })} style={{ background: '#0a7c4b', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={async () => { await generateProposalPDF(p, { name: p.title || 'Propuesta', address: '', phone: '', email: '', cuit: '', currency: 'ARS', footer: '' }); }} style={{ background: '#0a7c4b', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
                 📄 PDF
               </button>
             </div>

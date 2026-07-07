@@ -3,7 +3,6 @@ import { Document, DocItem, calcTotal, unitLabel } from '@/lib/documents';
 import { statusLabel } from '@/lib/status';
 import type { Proposal } from '@/lib/proposals';
 import { LOGO_WATERMARK } from '@/lib/logo-watermark';
-import { PLUS_JAKARTA_SANS_REGULAR, PLUS_JAKARTA_SANS_BOLD } from '@/lib/plus-jakarta-sans';
 
 function fmt(n: number) {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 2 });
@@ -37,16 +36,31 @@ const TXT3    = [128, 136, 152] as const;
 const LINE_CLR= [52, 55, 65] as const;
 const ACCENT  = [60, 128, 230] as const;
 
-function registerFonts(pdf: jsPDF) {
-  pdf.addFileToVFS('PlusJakartaSans-Regular.ttf', PLUS_JAKARTA_SANS_REGULAR);
+function bufToB64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+let fontDataCache: { reg: ArrayBuffer; bold: ArrayBuffer } | null = null;
+async function registerFonts(pdf: jsPDF) {
+  if (!fontDataCache) {
+    const [reg, bold] = await Promise.all([
+      fetch('/fonts/PlusJakartaSans-Regular.ttf').then(r => r.arrayBuffer()),
+      fetch('/fonts/PlusJakartaSans-Bold.ttf').then(r => r.arrayBuffer()),
+    ]);
+    fontDataCache = { reg, bold };
+  }
+  pdf.addFileToVFS('PlusJakartaSans-Regular.ttf', bufToB64(fontDataCache.reg));
   pdf.addFont('PlusJakartaSans-Regular.ttf', 'PlusJakartaSans', 'normal');
-  pdf.addFileToVFS('PlusJakartaSans-Bold.ttf', PLUS_JAKARTA_SANS_BOLD);
+  pdf.addFileToVFS('PlusJakartaSans-Bold.ttf', bufToB64(fontDataCache.bold));
   pdf.addFont('PlusJakartaSans-Bold.ttf', 'PlusJakartaSans', 'bold');
 }
 
 function addWatermark(pdf: jsPDF) {
   const size = 80;
-  pdf.addImage(LOGO_WATERMARK, 'PNG', (W - size) / 2, (H - size) / 2, size, size, undefined, 'NONE');
+  pdf.addImage(LOGO_WATERMARK, 'PNG', (W - size) / 2, (H - size) / 2, size, size);
 }
 
 function addBg(pdf: jsPDF) {
@@ -81,9 +95,9 @@ function headerBar(pdf: jsPDF) {
   pdf.rect(0, 0, W, 20, 'F');
 }
 
-export function generatePDF(doc: Document, biz: BizPdf) {
+export async function generatePDF(doc: Document, biz: BizPdf) {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  registerFonts(pdf);
+  await registerFonts(pdf);
   const cur = biz.currency || 'ARS';
   const money = (n: number) => `${cur === 'ARS' ? '$' : cur + ' '}${fmt(n)}`;
   let y = 0;
@@ -267,9 +281,9 @@ export function generatePDF(doc: Document, biz: BizPdf) {
   pdf.save(fname);
 }
 
-export function generateProposalPDF(proposal: Proposal, biz: BizPdf) {
+export async function generateProposalPDF(proposal: Proposal, biz: BizPdf) {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  registerFonts(pdf);
+  await registerFonts(pdf);
   const cur = biz.currency || 'ARS';
   const money = (n: number) => `${cur === 'ARS' ? '$' : cur + ' '}${n.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
   let y = 0;

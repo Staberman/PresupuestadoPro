@@ -159,7 +159,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
           <button onClick={handleShareLink} disabled={sending} style={{ background: copied ? '#0a7c4b' : '#364061', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: sending ? 'not-allowed' : 'pointer' }}>
             {copied ? '✓ Copiado' : '🔗 Copiar link'}
           </button>
-          <button onClick={() => proposal && generateProposalPDF(proposal, biz)} style={{ background: '#0a7c4b', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: 'pointer' }}>
+          <button onClick={async () => { if (proposal) await generateProposalPDF(proposal, biz); }} style={{ background: '#0a7c4b', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: 'pointer' }}>
             📄 PDF
           </button>
           <button onClick={() => router.push(`/dashboard/proposals/${proposalId}/edit`)} style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', cursor: 'pointer' }}>

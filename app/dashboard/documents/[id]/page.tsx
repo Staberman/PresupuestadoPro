@@ -192,7 +192,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
           <button onClick={() => router.push('/dashboard/documents')} style={{ background: 'rgba(255,255,255,.1)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', cursor: 'pointer' }}>
             ← Volver
           </button>
-          <button onClick={() => generatePDF(doc, biz)} style={{ background: '#1a56e8', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: 'pointer' }}>
+          <button onClick={async () => { await generatePDF(doc, biz); }} style={{ background: '#1a56e8', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '.8rem', fontWeight: '600', cursor: 'pointer' }}>
             📄 Descargar PDF
           </button>
           {doc.type === 'presupuesto' && (

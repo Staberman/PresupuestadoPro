@@ -163,7 +163,7 @@ export default function ProposalsPage() {
                         <button onClick={() => router.push(`/dashboard/proposals/${p.id}/edit`)} style={{ background: '#f0f4ff', color: '#364061', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
                           Editar
                         </button>
-                        <button onClick={() => generateProposalPDF(p, biz)} style={{ background: '#d1fae5', color: '#0a7c4b', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
+                        <button onClick={async () => { await generateProposalPDF(p, biz); }} style={{ background: '#d1fae5', color: '#0a7c4b', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>
                           PDF
                         </button>
                         <button onClick={() => handleDelete(p.id!)} style={{ background: '#fee2e2', color: '#c41c1c', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}>

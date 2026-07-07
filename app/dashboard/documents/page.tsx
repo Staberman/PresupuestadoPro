@@ -214,7 +214,7 @@ export default function DocumentsPage() {
                           </button>
                         )}
                           <button
-                            onClick={() => generatePDF(d, biz)}
+                            onClick={async () => { await generatePDF(d, biz); }}
                             style={{ background: '#f0f4ff', color: '#0f2d6e', border: 'none', borderRadius: '7px', padding: '5px 10px', fontSize: '.73rem', cursor: 'pointer' }}
                           >
                             📄 PDF
